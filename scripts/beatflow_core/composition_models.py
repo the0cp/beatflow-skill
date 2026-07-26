@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""BeatFlow Composition 1.0: explicit, style-neutral musical plans."""
+"""BeatFlow Composition 1.1: explicit, style-neutral musical plans."""
 
 from __future__ import annotations
 
@@ -31,6 +31,27 @@ DevelopmentIntent = Literal[
     "contrast",
     "climax",
     "release",
+]
+ClosureKind = Literal["open", "partial", "closed", "elided"]
+HarmonicStability = Literal["free", "supported", "resolved"]
+PostArrivalAction = Literal["stop", "echo", "link", "afterglow"]
+PhraseStageRole = Literal[
+    "initiate",
+    "develop",
+    "intensify",
+    "release",
+    "link",
+]
+PhraseFocusCue = Literal["salience", "density", "duration"]
+PhraseStageExitBehavior = Literal["free", "continue", "breathe", "arrive"]
+MetricEntryAnchor = Literal["free", "division", "tactus", "bar_downbeat"]
+PhraseGrouping = Literal["free", "regular", "irregular"]
+PhraseStageMetricRole = Literal[
+    "free",
+    "structural",
+    "pickup",
+    "extension",
+    "elision",
 ]
 
 
@@ -222,12 +243,219 @@ class SegmentPlan(StrictModel):
         return self
 
 
+class SilenceIntent(StrictModel):
+    """A section-relative window that selected musical functions leave empty."""
+
+    id: Identifier
+    onset: BeatTime
+    duration: BeatTime
+    functions: list[MusicalFunction] = Field(default_factory=list)
+    description: str = Field(default="", max_length=300)
+
+    @field_validator("functions")
+    @classmethod
+    def functions_are_unique(
+        cls, value: list[MusicalFunction]
+    ) -> list[MusicalFunction]:
+        if len(value) != len(set(value)):
+            raise ValueError("silence functions cannot contain duplicates")
+        return value
+
+    @model_validator(mode="after")
+    def duration_is_positive(self) -> "SilenceIntent":
+        if self.duration.numerator == 0:
+            raise ValueError("silence duration must be positive")
+        return self
+
+
+class TensionContour(StrictModel):
+    """A phrase-level start, high point, and release target."""
+
+    start: float = Field(ge=0.0, le=1.0)
+    peak: float = Field(ge=0.0, le=1.0)
+    end: float = Field(ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def peak_is_the_high_point(self) -> "TensionContour":
+        if self.peak < max(self.start, self.end):
+            raise ValueError("tension peak cannot be below start or end")
+        return self
+
+
+class PhraseIntent(StrictModel):
+    """A section-relative phrase and its intended perceptual boundary."""
+
+    id: Identifier
+    onset: BeatTime
+    duration: BeatTime
+    functions: list[MusicalFunction] = Field(default_factory=list)
+    attention: MusicalFunction | None = None
+    boundary_strength: float = Field(default=0.5, ge=0.0, le=1.0)
+    max_continuous_beats: BeatTime | None = None
+    grouping: PhraseGrouping = "free"
+    subphrase_bars: list[int] = Field(default_factory=list)
+    tension: TensionContour | None = None
+    goal: str = Field(default="", max_length=300)
+
+    @field_validator("functions")
+    @classmethod
+    def functions_are_unique(
+        cls, value: list[MusicalFunction]
+    ) -> list[MusicalFunction]:
+        if len(value) != len(set(value)):
+            raise ValueError("phrase functions cannot contain duplicates")
+        return value
+
+    @model_validator(mode="after")
+    def phrase_values_are_valid(self) -> "PhraseIntent":
+        if self.duration.numerator == 0:
+            raise ValueError("phrase duration must be positive")
+        if (
+            self.max_continuous_beats is not None
+            and self.max_continuous_beats.numerator == 0
+        ):
+            raise ValueError("max_continuous_beats must be positive")
+        if (
+            self.attention is not None
+            and self.functions
+            and self.attention not in self.functions
+        ):
+            raise ValueError("phrase attention must be one of its selected functions")
+        if self.grouping == "free" and self.subphrase_bars:
+            raise ValueError(
+                "free phrase grouping cannot declare subphrase_bars"
+            )
+        if self.grouping != "free" and not self.subphrase_bars:
+            raise ValueError(
+                "non-free phrase grouping requires subphrase_bars"
+            )
+        if any(value <= 0 for value in self.subphrase_bars):
+            raise ValueError("phrase subphrase_bars must be positive")
+        if (
+            self.grouping == "regular"
+            and len(set(self.subphrase_bars)) > 1
+        ):
+            raise ValueError(
+                "regular phrase grouping requires equal subphrase bars"
+            )
+        return self
+
+
+class PhraseStageIntent(StrictModel):
+    """One audible job inside a declared phrase."""
+
+    id: Identifier
+    phrase_id: Identifier
+    onset: BeatTime
+    duration: BeatTime
+    functions: list[MusicalFunction] = Field(default_factory=list)
+    role: PhraseStageRole = "develop"
+    min_attacks: int = Field(default=0, ge=0, le=256)
+    max_attacks: int = Field(default=256, ge=0, le=256)
+    min_connected_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
+    max_gesture_beats: BeatTime | None = None
+    min_polyphonic_attacks: int = Field(default=0, ge=0, le=256)
+    max_polyphonic_attacks: int = Field(default=256, ge=0, le=256)
+    metric_role: PhraseStageMetricRole = "free"
+    entry_anchor: MetricEntryAnchor = "free"
+    min_tactus_attack_ratio: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+    )
+    max_off_tactus_bridge_ratio: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+    )
+    exit_behavior: PhraseStageExitBehavior = "free"
+    focus: bool = False
+    focus_cue: PhraseFocusCue | None = None
+    goal: str = Field(default="", max_length=300)
+
+    @field_validator("functions")
+    @classmethod
+    def functions_are_unique(
+        cls, value: list[MusicalFunction]
+    ) -> list[MusicalFunction]:
+        if len(value) != len(set(value)):
+            raise ValueError("phrase stage functions cannot contain duplicates")
+        return value
+
+    @model_validator(mode="after")
+    def stage_values_are_valid(self) -> "PhraseStageIntent":
+        if self.duration.numerator == 0:
+            raise ValueError("phrase stage duration must be positive")
+        if self.min_attacks > self.max_attacks:
+            raise ValueError("phrase stage min_attacks cannot exceed max_attacks")
+        if (
+            self.max_gesture_beats is not None
+            and self.max_gesture_beats.numerator == 0
+        ):
+            raise ValueError("phrase stage max_gesture_beats must be positive")
+        if self.min_polyphonic_attacks > self.max_polyphonic_attacks:
+            raise ValueError(
+                "phrase stage min_polyphonic_attacks cannot exceed "
+                "max_polyphonic_attacks"
+            )
+        if (
+            self.metric_role == "structural"
+            and self.entry_anchor not in {"tactus", "bar_downbeat"}
+        ):
+            raise ValueError(
+                "structural phrase stages require a tactus or bar-downbeat "
+                "entry anchor"
+            )
+        if self.focus and self.focus_cue is None:
+            raise ValueError("a focus phrase stage requires focus_cue")
+        if not self.focus and self.focus_cue is not None:
+            raise ValueError("focus_cue is only valid on a focus phrase stage")
+        return self
+
+
+class ArrivalIntent(StrictModel):
+    """The intended point of local completion inside one declared phrase."""
+
+    id: Identifier
+    phrase_id: Identifier
+    onset: BeatTime
+    functions: list[MusicalFunction] = Field(default_factory=list)
+    closure: ClosureKind = "partial"
+    strength: float = Field(default=0.5, ge=0.0, le=1.0)
+    min_hold: BeatTime | None = None
+    harmonic_stability: HarmonicStability = "free"
+    post_action: PostArrivalAction = "stop"
+    max_post_attacks: int = Field(default=0, ge=0, le=64)
+    goal: str = Field(default="", max_length=300)
+
+    @field_validator("functions")
+    @classmethod
+    def functions_are_unique(
+        cls, value: list[MusicalFunction]
+    ) -> list[MusicalFunction]:
+        if len(value) != len(set(value)):
+            raise ValueError("arrival functions cannot contain duplicates")
+        return value
+
+    @model_validator(mode="after")
+    def arrival_values_are_valid(self) -> "ArrivalIntent":
+        if self.min_hold is not None and self.min_hold.numerator == 0:
+            raise ValueError("arrival min_hold must be positive")
+        if self.post_action == "stop" and self.max_post_attacks:
+            raise ValueError("a stop arrival cannot permit post-arrival attacks")
+        return self
+
+
 class SectionPlan(StrictModel):
     id: Identifier
     name: str = Field(min_length=1, max_length=100)
     length_bars: int = Field(ge=1, le=256)
     energy: float = Field(default=0.6, ge=0.0, le=1.0)
     harmony: list[HarmonySpan] = Field(default_factory=list)
+    phrases: list[PhraseIntent] = Field(default_factory=list)
+    phrase_stages: list[PhraseStageIntent] = Field(default_factory=list)
+    arrivals: list[ArrivalIntent] = Field(default_factory=list)
+    silences: list[SilenceIntent] = Field(default_factory=list)
     segments: list[SegmentPlan] = Field(min_length=1)
 
 
@@ -288,7 +516,7 @@ class InteractionIntent(StrictModel):
 
 
 class Composition(StrictModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["1.0", "1.1"] = "1.1"
     title: str = Field(min_length=1, max_length=120)
     intent: str = Field(default="", max_length=1_200)
     priorities: list[str] = Field(default_factory=list)

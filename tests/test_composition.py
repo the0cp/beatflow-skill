@@ -69,6 +69,63 @@ def small_composition(title: str = "Small Composition") -> Composition:
     section = song.section("sec_a", "A", bars=2, energy=0.58)
     section.chord_bar(1, "CM7", function="home")
     section.chord_bar(2, "Am7", function="departure")
+    section.phrase(
+        "phr_question_answer",
+        beat(0),
+        beat(8),
+        functions=["foreground"],
+        attention="foreground",
+        boundary_strength=0.3,
+        max_continuous=beat(4),
+        tension=(0.2, 0.65, 0.25),
+        goal="Ask, leave space, then answer with a longer arrival.",
+    )
+    section.arrival(
+        "arr_answer",
+        "phr_question_answer",
+        beat(6),
+        functions=["foreground"],
+        closure="closed",
+        strength=0.75,
+        min_hold=beat(1),
+        harmonic_stability="resolved",
+        post_action="stop",
+        max_post_attacks=0,
+        goal="Let the answer land on the local harmony and remain still.",
+    )
+    section.phrase_stage(
+        "stg_question",
+        "phr_question_answer",
+        beat(1, 3),
+        beat(8, 3),
+        functions=["foreground"],
+        role="initiate",
+        min_attacks=3,
+        max_attacks=3,
+        exit_behavior="breathe",
+        goal="State the question compactly, then leave a real gap.",
+    )
+    section.phrase_stage(
+        "stg_answer",
+        "phr_question_answer",
+        beat(13, 3),
+        beat(19, 6),
+        functions=["foreground"],
+        role="release",
+        min_attacks=3,
+        max_attacks=3,
+        exit_behavior="arrive",
+        focus=True,
+        focus_cue="duration",
+        goal="Answer with the phrase's longest structural tone.",
+    )
+    section.silence(
+        "sil_lead_breath",
+        beat(3),
+        beat(1),
+        functions=["foreground"],
+        description="Leave the foreground empty before its answer.",
+    )
 
     drums = section.segment(
         "seg_drums",
@@ -140,6 +197,60 @@ def small_composition(title: str = "Small Composition") -> Composition:
         maximum=0.7,
         description="The line may meet the pulse, but should not trace it.",
     )
+    return song.build()
+
+
+def continuous_two_voice_composition() -> Composition:
+    song = SongBuilder(
+        "Continuous Two Voice Texture",
+        intent="Exercise shared-release and density diagnostics.",
+        bpm=108,
+        tonic="D",
+        mode="minor",
+        meter=(4, 4),
+    )
+    song.track(
+        "trk_upper",
+        "Upper",
+        program=0,
+        monophonic=True,
+        low=60,
+        center=69,
+        high=84,
+    )
+    song.track(
+        "trk_lower",
+        "Lower",
+        program=0,
+        monophonic=True,
+        low=36,
+        center=50,
+        high=62,
+    )
+    section = song.section("sec_continuous", "Continuous", bars=8, energy=0.7)
+    upper = section.segment(
+        "seg_upper",
+        "Upper line",
+        track="trk_upper",
+        functions=["foreground"],
+        start=beat(0),
+        duration=beat(32),
+    )
+    lower = section.segment(
+        "seg_lower",
+        "Lower line",
+        track="trk_lower",
+        functions=["counterline"],
+        start=beat(0),
+        duration=beat(32),
+    )
+    for onset in range(32):
+        upper.note(beat(onset), beat(1), midi(69 + onset % 3))
+        lower.note(beat(onset), beat(1), midi(50 - onset % 3))
+    upper.end()
+    lower.end()
+    section.end()
+    song.play("occ_continuous", "sec_continuous")
     return song.build()
 
 
@@ -551,6 +662,162 @@ class BeatFlowCompositionTests(unittest.TestCase):
         self.assertEqual(song.at(1, 2).fraction, Fraction(3, 2))
         self.assertEqual(song.at(2, 1).fraction, Fraction(3))
 
+    def test_meter_aware_duration_helpers(self) -> None:
+        song = SongBuilder(
+            "Meter Durations",
+            intent="Exercise perceptual duration helpers.",
+            bpm=108,
+            tonic="D",
+            mode="minor",
+            meter=(6, 8),
+        )
+        self.assertEqual(song.tactus(1).fraction, Fraction(3, 2))
+        self.assertEqual(song.tactus(5, 2).fraction, Fraction(15, 4))
+        self.assertEqual(song.bars(2).fraction, Fraction(6))
+
+    def test_phrase_grouping_and_structural_stage_are_validated(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        phrase = payload["sections"][0]["phrases"][0]
+        phrase["grouping"] = "regular"
+        phrase["subphrase_bars"] = [1, 1]
+        stage = payload["sections"][0]["phrase_stages"][0]
+        stage["metric_role"] = "structural"
+        stage["entry_anchor"] = "bar_downbeat"
+        report = validate_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "structural_stage_off_subphrase_boundary",
+            {issue.code for issue in report.issues},
+        )
+
+        payload = small_composition().model_dump(mode="json")
+        phrase = payload["sections"][0]["phrases"][0]
+        phrase["grouping"] = "regular"
+        phrase["subphrase_bars"] = [1]
+        report = validate_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "phrase_grouping_duration_mismatch",
+            {issue.code for issue in report.issues},
+        )
+
+        payload = small_composition().model_dump(mode="json")
+        phrase = payload["sections"][0]["phrases"][0]
+        phrase["grouping"] = "regular"
+        phrase["subphrase_bars"] = [1, 2]
+        with self.assertRaises(ValueError):
+            Composition.model_validate(payload)
+
+    def test_regular_phrase_reports_repeated_subtractive_activity(self) -> None:
+        song = SongBuilder(
+            "Subtractive Six Eight",
+            intent="Expose a repeated seven-active-beat habit.",
+            bpm=108,
+            tonic="D",
+            mode="minor",
+            meter=(6, 8),
+        )
+        song.track(
+            "trk_line",
+            "Line",
+            monophonic=True,
+            low=60,
+            center=69,
+            high=84,
+        )
+        section = song.section("sec_a", "A", bars=8, energy=0.6)
+        for index, bar in enumerate([1, 5], start=1):
+            section.phrase(
+                f"phr_{index}",
+                song.at(bar),
+                song.bars(4),
+                functions=["foreground"],
+                attention="foreground",
+                boundary_strength=0.0,
+                grouping="regular",
+                subphrase_bars=[2, 2],
+                goal="Exercise a regular four-bar grouping.",
+            )
+        line = section.segment(
+            "seg_line",
+            "Repeated subtractive phrase rhythm",
+            track="trk_line",
+            functions=["foreground"],
+            start=song.at(1),
+            duration=song.bars(8),
+        )
+        for phrase_start in [Fraction(0), Fraction(12)]:
+            for tactus_index in [0, 1, 2, 4, 5, 6, 7]:
+                onset = phrase_start + Fraction(3, 2) * tactus_index
+                line.note(
+                    song.time(onset),
+                    song.tactus(1),
+                    midi(67 + tactus_index % 4),
+                )
+        line.end()
+        section.end()
+        song.play("occ_a", "sec_a")
+        report = diagnose_composition(song.build())
+        self.assertIn(
+            "repeated_subtractive_phrase_activity",
+            {issue.code for issue in report.issues},
+        )
+        metrics = report.metrics["sections"]["sec_a"]["phrases"]["phr_1"]
+        self.assertEqual(metrics["duration_bars"], 4.0)
+        self.assertEqual(metrics["duration_tactus"], 8.0)
+        self.assertEqual(metrics["subphrase_boundary_tactus"], [4])
+        self.assertEqual(metrics["tactus_activity_pattern"], "11101111")
+        self.assertEqual(metrics["active_tactus_runs"], [3, 4])
+        self.assertEqual(metrics["full_tactus_rest_positions"], [4])
+
+    def test_regular_phrase_detects_unplanned_hypermetric_split(self) -> None:
+        song = SongBuilder(
+            "Unplanned Split",
+            intent="Expose a restart away from the declared subphrase boundary.",
+            bpm=108,
+            tonic="D",
+            mode="minor",
+            meter=(6, 8),
+        )
+        song.track(
+            "trk_line",
+            "Line",
+            monophonic=True,
+            low=60,
+            center=69,
+            high=84,
+        )
+        section = song.section("sec_a", "A", bars=4, energy=0.6)
+        section.phrase(
+            "phr_main",
+            song.at(1),
+            song.bars(4),
+            functions=["foreground"],
+            boundary_strength=0.0,
+            grouping="regular",
+            subphrase_bars=[2, 2],
+        )
+        line = section.segment(
+            "seg_line",
+            "Off-boundary restart",
+            track="trk_line",
+            functions=["foreground"],
+            start=song.at(1),
+            duration=song.bars(4),
+        )
+        for tactus_index in [0, 1, 3, 4, 5, 6, 7]:
+            line.note(
+                song.tactus(tactus_index),
+                song.tactus(1),
+                midi(67 + tactus_index % 4),
+            )
+        line.end()
+        section.end()
+        song.play("occ_a", "sec_a")
+        report = diagnose_composition(song.build())
+        self.assertIn(
+            "unplanned_hypermetric_split",
+            {issue.code for issue in report.issues},
+        )
+
     def test_occurrence_arrangement_reuses_material_with_a_real_variant(self) -> None:
         composition = arranged_composition()
         report = validate_composition(composition)
@@ -848,6 +1115,493 @@ class BeatFlowCompositionTests(unittest.TestCase):
         self.assertIn(
             "interaction_outside_declared_range",
             {issue.code for issue in report.issues},
+        )
+
+    def test_declared_silence_is_validated_and_diagnosed(self) -> None:
+        composition = small_composition()
+        clean_report = diagnose_composition(composition)
+        self.assertNotIn(
+            "declared_silence_occupied",
+            {issue.code for issue in clean_report.issues},
+        )
+        clean_metrics = clean_report.metrics["sections"]["sec_a"][
+            "declared_silences"
+        ]["sil_lead_breath"]
+        self.assertEqual(clean_metrics["overlapping_events"], 0)
+
+        payload = composition.model_dump(mode="json")
+        payload["sections"][0]["silences"][0]["onset"] = {
+            "numerator": 2,
+            "denominator": 1,
+        }
+        occupied_report = diagnose_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "declared_silence_occupied",
+            {issue.code for issue in occupied_report.issues},
+        )
+
+    def test_silence_outside_section_is_rejected(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["silences"][0]["onset"] = {
+            "numerator": 8,
+            "denominator": 1,
+        }
+        report = validate_composition(Composition.model_validate(payload))
+        self.assertFalse(report.valid)
+        self.assertIn(
+            "silence_out_of_bounds",
+            {issue.code for issue in report.issues},
+        )
+
+    def test_declared_phrase_reports_boundary_and_continuity(self) -> None:
+        report = diagnose_composition(small_composition())
+        codes = {issue.code for issue in report.issues}
+        self.assertNotIn("weak_declared_phrase_boundary", codes)
+        self.assertNotIn("phrase_continuity_exceeds_declared_limit", codes)
+        metrics = report.metrics["sections"]["sec_a"]["phrases"][
+            "phr_question_answer"
+        ]
+        self.assertEqual(metrics["attention"], "foreground")
+        self.assertGreater(metrics["boundary_gap_beats"], 0.0)
+        self.assertLessEqual(metrics["longest_continuous_beats"], 4.0)
+        self.assertEqual(
+            metrics["intended_tension"],
+            {"start": 0.2, "peak": 0.65, "end": 0.25},
+        )
+        arrival = report.metrics["sections"]["sec_a"]["arrivals"]["arr_answer"]
+        self.assertEqual(arrival["attacks_at_arrival"], 1)
+        self.assertEqual(arrival["post_attacks"], 0)
+        self.assertGreaterEqual(arrival["anchor_hold_beats"], 1.0)
+        self.assertEqual(arrival["harmonic_support_ratio"], 1.0)
+        stages = report.metrics["sections"]["sec_a"]["phrase_stages"]
+        self.assertEqual(stages["stg_question"]["attacks"], 3)
+        self.assertEqual(stages["stg_answer"]["attacks"], 3)
+        self.assertEqual(stages["stg_question"]["exit_behavior"], "breathe")
+        self.assertGreaterEqual(stages["stg_question"]["exit_gap_beats"], 1.0)
+        self.assertGreater(
+            stages["stg_answer"]["maximum_duration_beats"],
+            stages["stg_question"]["maximum_duration_beats"],
+        )
+        self.assertNotIn("phrase_focus_not_realized", codes)
+
+    def test_phrase_boundary_and_continuity_failures_are_diagnosed(self) -> None:
+        payload = continuous_two_voice_composition().model_dump(mode="json")
+        payload["sections"][0]["phrases"] = [
+            {
+                "id": "phr_unbroken",
+                "onset": {"numerator": 0, "denominator": 1},
+                "duration": {"numerator": 32, "denominator": 1},
+                "functions": ["foreground", "counterline"],
+                "attention": "foreground",
+                "boundary_strength": 1.0,
+                "max_continuous_beats": {
+                    "numerator": 4,
+                    "denominator": 1,
+                },
+                "tension": {"start": 0.2, "peak": 0.8, "end": 0.2},
+                "goal": "Expose an intentionally breathless phrase.",
+            }
+        ]
+        report = diagnose_composition(Composition.model_validate(payload))
+        codes = {issue.code for issue in report.issues}
+        self.assertIn("weak_declared_phrase_boundary", codes)
+        self.assertIn("phrase_continuity_exceeds_declared_limit", codes)
+        self.assertIn("phrase_release_not_reflected_in_density", codes)
+
+    def test_empty_declared_phrase_has_no_boundary_credit(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["arrivals"] = []
+        payload["sections"][0]["phrase_stages"] = []
+        payload["sections"][0]["phrases"][0]["onset"] = {
+            "numerator": 3,
+            "denominator": 1,
+        }
+        payload["sections"][0]["phrases"][0]["duration"] = {
+            "numerator": 1,
+            "denominator": 1,
+        }
+        payload["sections"][0]["phrases"][0]["max_continuous_beats"] = {
+            "numerator": 1,
+            "denominator": 1,
+        }
+        report = diagnose_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "empty_declared_phrase",
+            {issue.code for issue in report.issues},
+        )
+        metrics = report.metrics["sections"]["sec_a"]["phrases"][
+            "phr_question_answer"
+        ]
+        self.assertEqual(metrics["attacks"], 0)
+        self.assertEqual(metrics["boundary_evidence"], 0.0)
+
+    def test_phrase_stage_references_bounds_and_overlap_are_validated(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["phrase_stages"][0]["phrase_id"] = "phr_missing"
+        missing = validate_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "missing_phrase_stage_phrase",
+            {issue.code for issue in missing.issues},
+        )
+
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["phrase_stages"][0]["onset"] = {
+            "numerator": 7,
+            "denominator": 1,
+        }
+        outside = validate_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "phrase_stage_outside_phrase",
+            {issue.code for issue in outside.issues},
+        )
+
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["phrase_stages"][1]["onset"] = {
+            "numerator": 2,
+            "denominator": 1,
+        }
+        overlap = validate_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "overlapping_phrase_stages",
+            {issue.code for issue in overlap.issues},
+        )
+
+    def test_phrase_stage_has_one_focus_and_valid_attack_budget(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["phrase_stages"][0]["focus"] = True
+        payload["sections"][0]["phrase_stages"][0]["focus_cue"] = "salience"
+        report = validate_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "multiple_phrase_focus_stages",
+            {issue.code for issue in report.issues},
+        )
+
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["phrase_stages"][0]["min_attacks"] = 4
+        payload["sections"][0]["phrase_stages"][0]["max_attacks"] = 3
+        with self.assertRaises(ValueError):
+            Composition.model_validate(payload)
+
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["phrase_stages"][0][
+            "min_polyphonic_attacks"
+        ] = 2
+        payload["sections"][0]["phrase_stages"][0][
+            "max_polyphonic_attacks"
+        ] = 1
+        with self.assertRaises(ValueError):
+            Composition.model_validate(payload)
+
+    def test_phrase_stage_budget_and_focus_are_diagnosed(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["phrase_stages"][0]["min_attacks"] = 0
+        payload["sections"][0]["phrase_stages"][0]["max_attacks"] = 2
+        payload["sections"][0]["phrase_stages"][1]["focus_cue"] = "density"
+        report = diagnose_composition(Composition.model_validate(payload))
+        codes = {issue.code for issue in report.issues}
+        self.assertIn("phrase_stage_attack_budget_missed", codes)
+        self.assertIn("phrase_focus_not_realized", codes)
+
+    def test_phrase_stage_exit_behavior_is_diagnosed(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["phrase_stages"][0][
+            "exit_behavior"
+        ] = "continue"
+        payload["sections"][0]["phrase_stages"][1][
+            "exit_behavior"
+        ] = "breathe"
+        report = diagnose_composition(Composition.model_validate(payload))
+        codes = {issue.code for issue in report.issues}
+        self.assertIn("phrase_stage_continuation_interrupted", codes)
+        self.assertIn("phrase_stage_breath_missing", codes)
+
+    def test_phrase_stage_internal_connection_is_diagnosed(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["phrase_stages"][0][
+            "min_connected_ratio"
+        ] = 0.5
+        report = diagnose_composition(Composition.model_validate(payload))
+        codes = {issue.code for issue in report.issues}
+        self.assertIn("phrase_stage_internal_connection_missed", codes)
+        metrics = report.metrics["sections"]["sec_a"]["phrase_stages"][
+            "stg_question"
+        ]
+        self.assertEqual(metrics["transition_pairs"], 2)
+        self.assertEqual(metrics["connected_pairs"], 0)
+        self.assertEqual(metrics["connected_pair_ratio"], 0.0)
+        self.assertGreater(metrics["micro_gap_pairs"], 0)
+
+    def test_phrase_stage_metric_coordination_is_diagnosed(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        stage = payload["sections"][0]["phrase_stages"][0]
+        stage["entry_anchor"] = "tactus"
+        stage["min_tactus_attack_ratio"] = 0.5
+        stage["max_off_tactus_bridge_ratio"] = 0.25
+        payload["sections"][0]["segments"][3]["events"][0]["duration"] = {
+            "numerator": 1,
+            "denominator": 1,
+        }
+        report = diagnose_composition(Composition.model_validate(payload))
+        codes = {issue.code for issue in report.issues}
+        self.assertIn("phrase_stage_entry_anchor_missed", codes)
+        self.assertIn("phrase_stage_tactus_alignment_missed", codes)
+        self.assertIn("phrase_stage_displaced_holds_exceeded", codes)
+        metrics = report.metrics["sections"]["sec_a"]["phrase_stages"][
+            "stg_question"
+        ]
+        self.assertEqual(metrics["entry_anchor"], "tactus")
+        self.assertFalse(metrics["entry_anchor_met"])
+        self.assertEqual(metrics["first_attack_onset"], "1/3")
+        self.assertEqual(metrics["tactus_attack_ratio"], 0.3333)
+        self.assertEqual(metrics["off_tactus_bridge_ratio"], 0.5)
+
+    def test_phrase_stage_gesture_and_polyphonic_budgets_are_diagnosed(
+        self,
+    ) -> None:
+        payload = small_composition().model_dump(mode="json")
+        stage = payload["sections"][0]["phrase_stages"][0]
+        stage["max_gesture_beats"] = {
+            "numerator": 2,
+            "denominator": 1,
+        }
+        stage["min_polyphonic_attacks"] = 1
+        stage["max_polyphonic_attacks"] = 2
+        report = diagnose_composition(Composition.model_validate(payload))
+        codes = {issue.code for issue in report.issues}
+        self.assertIn("phrase_stage_gesture_span_exceeded", codes)
+        self.assertIn("phrase_stage_polyphonic_attack_budget_missed", codes)
+        metrics = report.metrics["sections"]["sec_a"]["phrase_stages"][
+            "stg_question"
+        ]
+        self.assertEqual(metrics["gesture_count"], 1)
+        self.assertGreater(metrics["longest_gesture_beats"], 2.0)
+        self.assertEqual(metrics["polyphonic_attacks"], 0)
+        self.assertEqual(metrics["single_note_attacks"], 3)
+
+    def test_uniform_long_phrase_gestures_are_diagnosed(self) -> None:
+        song = SongBuilder(
+            "Long Uniform Gestures",
+            intent="Exercise phrase gesture-length diagnostics.",
+            bpm=108,
+            tonic="C",
+            mode="minor",
+            meter=(4, 4),
+        )
+        song.track(
+            "trk_lead",
+            "Lead",
+            monophonic=True,
+            low=60,
+            center=69,
+            high=84,
+        )
+        section = song.section("sec_long", "Long", bars=4, energy=0.6)
+        section.phrase(
+            "phr_long",
+            beat(0),
+            beat(14),
+            functions=["foreground"],
+            attention="foreground",
+            boundary_strength=0.0,
+            goal="Expose two equally long continuous gestures.",
+        )
+        lead = section.segment(
+            "seg_long",
+            "Two long gestures",
+            track="trk_lead",
+            functions=["foreground"],
+            start=beat(0),
+            duration=beat(14),
+        )
+        for onset in [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12]:
+            lead.note(beat(onset), beat(1), midi(67 + onset % 3))
+        lead.end()
+        section.end()
+        song.play("occ_long", "sec_long")
+        report = diagnose_composition(song.build())
+        self.assertIn(
+            "uniform_long_phrase_gestures",
+            {issue.code for issue in report.issues},
+        )
+        spans = report.metrics["sections"]["sec_long"]["phrases"]["phr_long"][
+            "continuous_spans_beats"
+        ]
+        self.assertEqual(spans, [6.0, 6.0])
+
+    def test_dense_displaced_foreground_reports_metric_anchor_conflict(self) -> None:
+        song = SongBuilder(
+            "Displaced Foreground",
+            intent="Exercise shared-clock diagnostics.",
+            bpm=108,
+            tonic="C",
+            mode="minor",
+            meter=(4, 4),
+        )
+        song.track(
+            "trk_lead",
+            "Lead",
+            monophonic=True,
+            low=60,
+            center=69,
+            high=84,
+        )
+        section = song.section("sec_shifted", "Shifted", bars=8, energy=0.6)
+        lead = section.segment(
+            "seg_shifted",
+            "Permanently displaced line",
+            track="trk_lead",
+            functions=["foreground"],
+            start=beat(0),
+            duration=beat(32),
+        )
+        for bar in range(8):
+            for offset_halves, pitch in [(1, 67), (3, 69), (5, 72)]:
+                lead.note(
+                    beat(bar * 8 + offset_halves, 2),
+                    beat(3, 4),
+                    midi(pitch),
+                )
+        lead.end()
+        section.end()
+        song.play("occ_shifted", "sec_shifted")
+        report = diagnose_composition(song.build())
+        codes = {issue.code for issue in report.issues}
+        self.assertIn("foreground_metric_anchor_conflict", codes)
+        metrics = report.metrics["segments"]["seg_shifted"]
+        self.assertEqual(metrics["tactus_alignment_ratio"], 0.0)
+        self.assertEqual(metrics["bar_downbeat_coverage"], 0.0)
+        self.assertEqual(metrics["off_tactus_bridge_ratio"], 1.0)
+
+    def test_tension_peak_must_be_the_high_point(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["phrases"][0]["tension"] = {
+            "start": 0.6,
+            "peak": 0.5,
+            "end": 0.2,
+        }
+        with self.assertRaises(ValueError):
+            Composition.model_validate(payload)
+
+    def test_phrase_outside_section_is_rejected(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["phrases"][0]["duration"] = {
+            "numerator": 9,
+            "denominator": 1,
+        }
+        report = validate_composition(Composition.model_validate(payload))
+        self.assertFalse(report.valid)
+        self.assertIn(
+            "phrase_out_of_bounds",
+            {issue.code for issue in report.issues},
+        )
+
+    def test_arrival_reference_bounds_and_hold_are_validated(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["arrivals"][0]["phrase_id"] = "phr_missing"
+        missing = validate_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "missing_arrival_phrase",
+            {issue.code for issue in missing.issues},
+        )
+
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["arrivals"][0]["onset"] = {
+            "numerator": 8,
+            "denominator": 1,
+        }
+        outside = validate_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "arrival_outside_phrase",
+            {issue.code for issue in outside.issues},
+        )
+
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["arrivals"][0]["min_hold"] = {
+            "numerator": 3,
+            "denominator": 1,
+        }
+        excessive = validate_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "arrival_hold_exceeds_phrase",
+            {issue.code for issue in excessive.issues},
+        )
+
+    def test_arrival_stop_has_no_post_attack_budget(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["arrivals"][0]["max_post_attacks"] = 1
+        with self.assertRaises(ValueError):
+            Composition.model_validate(payload)
+
+    def test_arrival_detects_missing_and_unarticulated_completion(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["arrivals"][0]["onset"] = {
+            "numerator": 3,
+            "denominator": 1,
+        }
+        payload["sections"][0]["arrivals"][0]["min_hold"] = None
+        missing = diagnose_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "arrival_missing",
+            {issue.code for issue in missing.issues},
+        )
+
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["arrivals"][0]["onset"] = {
+            "numerator": 7,
+            "denominator": 1,
+        }
+        payload["sections"][0]["arrivals"][0]["min_hold"] = None
+        sustained = diagnose_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "arrival_not_articulated",
+            {issue.code for issue in sustained.issues},
+        )
+
+    def test_arrival_detects_short_hold_and_post_arrival_overrun(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["arrivals"][0]["onset"] = {
+            "numerator": 2,
+            "denominator": 1,
+        }
+        payload["sections"][0]["arrivals"][0]["min_hold"] = {
+            "numerator": 2,
+            "denominator": 1,
+        }
+        report = diagnose_composition(Composition.model_validate(payload))
+        codes = {issue.code for issue in report.issues}
+        self.assertIn("arrival_hold_too_short", codes)
+        self.assertIn("post_arrival_overrun", codes)
+
+    def test_arrival_detects_missed_harmonic_support(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        final_note = payload["sections"][0]["segments"][3]["events"][-1]
+        final_note["target"] = {
+            "basis": "absolute",
+            "degree": None,
+            "alter": 0,
+            "midi": 61,
+            "semitones": None,
+        }
+        report = diagnose_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "arrival_harmonic_support_missed",
+            {issue.code for issue in report.issues},
+        )
+
+    def test_diagnostics_report_shared_release_and_bar_density(self) -> None:
+        report = diagnose_composition(continuous_two_voice_composition())
+        self.assertIn(
+            "continuous_pitched_texture",
+            {issue.code for issue in report.issues},
+        )
+        metrics = report.metrics["sections"]["sec_continuous"]
+        self.assertEqual(
+            metrics["pitched_texture_silence"]["longest_silence_beats"],
+            0.0,
+        )
+        self.assertEqual(
+            metrics["pitched_attack_density"]["per_bar"],
+            [8] * 8,
         )
 
     def test_diagnostics_detect_foreground_loop_and_attention_competition(self) -> None:

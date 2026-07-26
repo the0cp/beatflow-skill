@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Compile Composition 1.0 functional events into deterministic MIDI notes."""
+"""Compile Composition 1.1 functional events into deterministic MIDI notes."""
 
 from __future__ import annotations
 

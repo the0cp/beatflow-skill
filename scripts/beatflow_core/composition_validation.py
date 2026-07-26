@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Semantic validation for style-neutral Composition 1.0 plans."""
+"""Semantic validation for style-neutral Composition 1.1 plans."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from .composition_models import (
     PitchedEvent,
 )
 from .harmony_utils import parse_chord_symbol
+from .meter import meter_profile
 from .validation import Issue, ValidationReport
 
 
@@ -135,11 +136,396 @@ def validate_composition(composition: Composition) -> ValidationReport:
         section_length = (
             composition.beats_per_bar_fraction * section.length_bars
         )
+        profile = meter_profile(composition.time_signature)
         section_functions = {
             function
             for segment in section.segments
             for function in segment.functions
         }
+        for duplicate in sorted(
+            _duplicates([phrase.id for phrase in section.phrases])
+        ):
+            add(
+                "error",
+                "duplicate_phrase_id",
+                f"sections[{section_index}].phrases",
+                (
+                    f"Phrase ID '{duplicate}' is duplicated inside "
+                    f"section '{section.id}'."
+                ),
+            )
+        for phrase_index, phrase in enumerate(section.phrases):
+            path = f"sections[{section_index}].phrases[{phrase_index}]"
+            all_times.extend(
+                [
+                    (f"{path}.onset", phrase.onset),
+                    (f"{path}.duration", phrase.duration),
+                ]
+            )
+            if phrase.max_continuous_beats is not None:
+                all_times.append(
+                    (
+                        f"{path}.max_continuous_beats",
+                        phrase.max_continuous_beats,
+                    )
+                )
+                if (
+                    phrase.max_continuous_beats.fraction
+                    > phrase.duration.fraction
+                ):
+                    add(
+                        "error",
+                        "phrase_continuity_exceeds_duration",
+                        f"{path}.max_continuous_beats",
+                        (
+                            f"Phrase '{phrase.id}' allows continuous motion "
+                            "longer than the phrase itself."
+                        ),
+                    )
+            phrase_end = phrase.onset.fraction + phrase.duration.fraction
+            if phrase.grouping != "free":
+                expected_duration = (
+                    sum(phrase.subphrase_bars) * profile.measure
+                )
+                if phrase.onset.fraction % profile.measure != 0:
+                    add(
+                        "error",
+                        "grouped_phrase_off_bar_downbeat",
+                        f"{path}.onset",
+                        (
+                            f"Grouped phrase '{phrase.id}' must begin on a "
+                            "bar downbeat."
+                        ),
+                    )
+                if phrase.duration.fraction != expected_duration:
+                    add(
+                        "error",
+                        "phrase_grouping_duration_mismatch",
+                        f"{path}.subphrase_bars",
+                        (
+                            f"Phrase '{phrase.id}' declares "
+                            f"{sum(phrase.subphrase_bars)} grouped bars but "
+                            f"lasts {phrase.duration.fraction} quarter-note "
+                            "beats."
+                        ),
+                        (
+                            "Make phrase duration equal the declared "
+                            "subphrase bars in the current meter."
+                        ),
+                    )
+            if phrase_end > section_length:
+                add(
+                    "error",
+                    "phrase_out_of_bounds",
+                    path,
+                    (
+                        f"Phrase '{phrase.id}' ends at beat {phrase_end}, "
+                        f"beyond section length {section_length}."
+                    ),
+                )
+            for function in phrase.functions:
+                if function not in section_functions:
+                    add(
+                        "error",
+                        "missing_phrase_function",
+                        f"{path}.functions",
+                        (
+                            f"Section '{section.id}' has no segment with function "
+                            f"'{function}'."
+                        ),
+                    )
+            if (
+                phrase.attention is not None
+                and phrase.attention not in section_functions
+            ):
+                add(
+                    "error",
+                    "missing_phrase_attention",
+                    f"{path}.attention",
+                    (
+                        f"Section '{section.id}' has no segment with function "
+                        f"'{phrase.attention}'."
+                    ),
+                )
+
+        phrases_by_id = {phrase.id: phrase for phrase in section.phrases}
+        for duplicate in sorted(
+            _duplicates([stage.id for stage in section.phrase_stages])
+        ):
+            add(
+                "error",
+                "duplicate_phrase_stage_id",
+                f"sections[{section_index}].phrase_stages",
+                (
+                    f"Phrase stage ID '{duplicate}' is duplicated inside "
+                    f"section '{section.id}'."
+                ),
+            )
+        stages_by_phrase: defaultdict[str, list[tuple[int, object]]] = defaultdict(list)
+        for stage_index, stage in enumerate(section.phrase_stages):
+            path = f"sections[{section_index}].phrase_stages[{stage_index}]"
+            all_times.extend(
+                [
+                    (f"{path}.onset", stage.onset),
+                    (f"{path}.duration", stage.duration),
+                ]
+            )
+            phrase = phrases_by_id.get(stage.phrase_id)
+            if phrase is None:
+                add(
+                    "error",
+                    "missing_phrase_stage_phrase",
+                    f"{path}.phrase_id",
+                    (
+                        f"Phrase stage '{stage.id}' refers to missing phrase "
+                        f"'{stage.phrase_id}'."
+                    ),
+                )
+            else:
+                stage_start = stage.onset.fraction
+                stage_end = stage_start + stage.duration.fraction
+                phrase_start = phrase.onset.fraction
+                phrase_end = phrase_start + phrase.duration.fraction
+                if stage_start < phrase_start or stage_end > phrase_end:
+                    add(
+                        "error",
+                        "phrase_stage_outside_phrase",
+                        path,
+                        (
+                            f"Phrase stage '{stage.id}' [{stage_start}, "
+                            f"{stage_end}) is outside phrase '{phrase.id}' "
+                            f"[{phrase_start}, {phrase_end})."
+                        ),
+                    )
+                if (
+                    phrase.functions
+                    and stage.functions
+                    and not set(stage.functions).issubset(phrase.functions)
+                ):
+                    add(
+                        "error",
+                        "phrase_stage_function_outside_phrase",
+                        f"{path}.functions",
+                        (
+                            f"Phrase stage '{stage.id}' selects a function "
+                            f"not covered by phrase '{phrase.id}'."
+                        ),
+                    )
+                if (
+                    stage.metric_role == "structural"
+                    and phrase.grouping != "free"
+                ):
+                    boundaries = [phrase_start]
+                    cursor = phrase_start
+                    for bars in phrase.subphrase_bars[:-1]:
+                        cursor += bars * profile.measure
+                        boundaries.append(cursor)
+                    if stage_start not in boundaries:
+                        add(
+                            "error",
+                            "structural_stage_off_subphrase_boundary",
+                            f"{path}.onset",
+                            (
+                                f"Structural phrase stage '{stage.id}' "
+                                "does not begin at a declared subphrase "
+                                f"boundary of phrase '{phrase.id}'."
+                            ),
+                            (
+                                "Move the structural stage to a declared "
+                                "boundary or give the displacement an "
+                                "explicit pickup, extension, elision, or "
+                                "free metric role."
+                            ),
+                        )
+                stages_by_phrase[stage.phrase_id].append((stage_index, stage))
+            for function in stage.functions:
+                if function not in section_functions:
+                    add(
+                        "error",
+                        "missing_phrase_stage_function",
+                        f"{path}.functions",
+                        (
+                            f"Section '{section.id}' has no segment with "
+                            f"function '{function}'."
+                        ),
+                    )
+
+        for phrase_id, indexed_stages in stages_by_phrase.items():
+            focus_stages = [stage for _, stage in indexed_stages if stage.focus]
+            if len(focus_stages) > 1:
+                add(
+                    "error",
+                    "multiple_phrase_focus_stages",
+                    f"sections[{section_index}].phrase_stages",
+                    (
+                        f"Phrase '{phrase_id}' has more than one focus stage: "
+                        + ", ".join(stage.id for stage in focus_stages)
+                        + "."
+                    ),
+                )
+            ordered = sorted(
+                indexed_stages,
+                key=lambda item: item[1].onset.fraction,
+            )
+            for (left_index, left), (right_index, right) in zip(
+                ordered,
+                ordered[1:],
+                strict=False,
+            ):
+                left_end = left.onset.fraction + left.duration.fraction
+                if right.onset.fraction < left_end:
+                    add(
+                        "error",
+                        "overlapping_phrase_stages",
+                        (
+                            f"sections[{section_index}].phrase_stages"
+                            f"[{right_index}]"
+                        ),
+                        (
+                            f"Phrase stages '{left.id}' and '{right.id}' "
+                            f"overlap inside phrase '{phrase_id}'."
+                        ),
+                    )
+
+        for duplicate in sorted(
+            _duplicates([arrival.id for arrival in section.arrivals])
+        ):
+            add(
+                "error",
+                "duplicate_arrival_id",
+                f"sections[{section_index}].arrivals",
+                (
+                    f"Arrival ID '{duplicate}' is duplicated inside "
+                    f"section '{section.id}'."
+                ),
+            )
+        for duplicate in sorted(
+            _duplicates([arrival.phrase_id for arrival in section.arrivals])
+        ):
+            add(
+                "error",
+                "duplicate_phrase_arrival",
+                f"sections[{section_index}].arrivals",
+                (
+                    f"Phrase '{duplicate}' has more than one primary arrival "
+                    f"inside section '{section.id}'."
+                ),
+            )
+        for arrival_index, arrival in enumerate(section.arrivals):
+            path = f"sections[{section_index}].arrivals[{arrival_index}]"
+            all_times.append((f"{path}.onset", arrival.onset))
+            if arrival.min_hold is not None:
+                all_times.append((f"{path}.min_hold", arrival.min_hold))
+            phrase = phrases_by_id.get(arrival.phrase_id)
+            if phrase is None:
+                add(
+                    "error",
+                    "missing_arrival_phrase",
+                    f"{path}.phrase_id",
+                    (
+                        f"Arrival '{arrival.id}' refers to missing phrase "
+                        f"'{arrival.phrase_id}'."
+                    ),
+                )
+            else:
+                phrase_start = phrase.onset.fraction
+                phrase_end = phrase_start + phrase.duration.fraction
+                if not phrase_start <= arrival.onset.fraction < phrase_end:
+                    add(
+                        "error",
+                        "arrival_outside_phrase",
+                        f"{path}.onset",
+                        (
+                            f"Arrival '{arrival.id}' at beat "
+                            f"{arrival.onset.fraction} is outside phrase "
+                            f"'{phrase.id}' [{phrase_start}, {phrase_end})."
+                        ),
+                    )
+                elif (
+                    arrival.min_hold is not None
+                    and arrival.onset.fraction
+                    + arrival.min_hold.fraction
+                    > phrase_end
+                ):
+                    add(
+                        "error",
+                        "arrival_hold_exceeds_phrase",
+                        f"{path}.min_hold",
+                        (
+                            f"Arrival '{arrival.id}' cannot hold for "
+                            f"{arrival.min_hold.fraction} beats before phrase "
+                            f"'{phrase.id}' ends."
+                        ),
+                    )
+                if (
+                    phrase.functions
+                    and arrival.functions
+                    and not set(arrival.functions).issubset(phrase.functions)
+                ):
+                    add(
+                        "error",
+                        "arrival_function_outside_phrase",
+                        f"{path}.functions",
+                        (
+                            f"Arrival '{arrival.id}' selects a function not "
+                            f"covered by phrase '{phrase.id}'."
+                        ),
+                    )
+            for function in arrival.functions:
+                if function not in section_functions:
+                    add(
+                        "error",
+                        "missing_arrival_function",
+                        f"{path}.functions",
+                        (
+                            f"Section '{section.id}' has no segment with "
+                            f"function '{function}'."
+                        ),
+                    )
+
+        for duplicate in sorted(
+            _duplicates([silence.id for silence in section.silences])
+        ):
+            add(
+                "error",
+                "duplicate_silence_id",
+                f"sections[{section_index}].silences",
+                (
+                    f"Silence ID '{duplicate}' is duplicated inside "
+                    f"section '{section.id}'."
+                ),
+            )
+
+        for silence_index, silence in enumerate(section.silences):
+            path = f"sections[{section_index}].silences[{silence_index}]"
+            all_times.extend(
+                [
+                    (f"{path}.onset", silence.onset),
+                    (f"{path}.duration", silence.duration),
+                ]
+            )
+            silence_end = silence.onset.fraction + silence.duration.fraction
+            if silence_end > section_length:
+                add(
+                    "error",
+                    "silence_out_of_bounds",
+                    path,
+                    (
+                        f"Silence '{silence.id}' ends at beat {silence_end}, "
+                        f"beyond section length {section_length}."
+                    ),
+                )
+            for function in silence.functions:
+                if function not in section_functions:
+                    add(
+                        "error",
+                        "missing_silence_function",
+                        f"{path}.functions",
+                        (
+                            f"Section '{section.id}' has no segment with function "
+                            f"'{function}'."
+                        ),
+                    )
 
         cursor = Fraction(0)
         for harmony_index, span in enumerate(section.harmony):
@@ -660,6 +1046,18 @@ def validate_composition(composition: Composition) -> ValidationReport:
                 for segment in section.segments
             ),
             "interactions": len(composition.interactions),
+            "phrases": sum(
+                len(section.phrases) for section in composition.sections
+            ),
+            "phrase_stages": sum(
+                len(section.phrase_stages) for section in composition.sections
+            ),
+            "arrivals": sum(
+                len(section.arrivals) for section in composition.sections
+            ),
+            "silences": sum(
+                len(section.silences) for section in composition.sections
+            ),
             "ppq": composition.ppq,
         },
     )

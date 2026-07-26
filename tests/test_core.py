@@ -19,8 +19,21 @@ class BeatFlowProjectTests(unittest.TestCase):
         composition = small_composition()
         project = compile_composition(composition)
         self.assertEqual(__version__, "2.0")
-        self.assertEqual(composition.schema_version, "1.0")
+        self.assertEqual(composition.schema_version, "1.1")
         self.assertEqual(project.schema_version, "1.0")
+
+    def test_composition_1_0_remains_readable(self) -> None:
+        composition = small_composition()
+        payload = composition.model_dump(mode="json")
+        payload["schema_version"] = "1.0"
+        for section in payload["sections"]:
+            section.pop("phrases", None)
+            section.pop("phrase_stages", None)
+            section.pop("arrivals", None)
+            section.pop("silences", None)
+        legacy = type(composition).model_validate(payload)
+        self.assertEqual(legacy.schema_version, "1.0")
+        self.assertTrue(validate_project(compile_composition(legacy)).valid)
 
     def test_compiled_project_is_semantically_valid(self) -> None:
         project = compile_composition(small_composition())

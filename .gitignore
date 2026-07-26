@@ -10,4 +10,5 @@ dist/
 build/
 *.mid
 *.midi
-
+!examples/*.mid
+!examples/*.midi

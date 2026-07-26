@@ -2,7 +2,11 @@
 
 Compose complete, editable multi-track MIDI with Codex.
 
-BeatFlow 2.0 turns Codex into a full-song symbolic music composer and arranger. Give it a musical brief; Codex writes an original arrangement in a small Python DSL, while the bundled style-neutral engine validates exact musical relationships, realizes functional pitches and chord voicings, and renders deterministic Standard MIDI.
+BeatFlow 2.0 turns Codex into a full-song symbolic music composer and
+arranger. Give it a musical brief; Codex writes an original arrangement in a
+small Python DSL, while the bundled style-neutral engine validates exact
+musical relationships and phrase intent, realizes functional pitches and
+chord voicings, and renders deterministic Standard MIDI.
 
 The engine does not call Gemini, the OpenAI API, or another model service. It requires Codex, Python 3.10 or newer, and network access on the first run to install three pinned Python dependencies. It produces symbolic MIDI and structured diagnostics, not finished audio.
 
@@ -15,6 +19,7 @@ These are output snapshots for listening and inspection, not style templates or 
 | Neo Soul | [Listen or download](examples/neo-soul.mp3) | [Download MIDI](examples/neo-soul.mid) | Extended voicings, independent bass, and foreground space |
 | Funk | [Listen or download](examples/funk.mp3) | [Download MIDI](examples/funk.mid) | Rhythm-guitar instrument contract and interlocking groove |
 | Theme and Variation | [Listen or download](examples/theme-and-variation.mp3) | [Download MIDI](examples/theme-and-variation.mid) | Motivic development across contrasting variations |
+| Velvet Crosswalk | [Listen or download](examples/velvet-crosswalk.mp3) | [Download MIDI](examples/velvet-crosswalk.mid) | Quantized pop-jazz pocket, a simple piano hook, and regular 2+2-bar phrasing |
 
 ## How it works
 
@@ -29,6 +34,40 @@ musical brief
 Codex keeps the open-ended musical decisions. The engine keeps exact relationships reproducible and inspectable without encoding a library of genre templates.
 
 BeatFlow was originally inspired by [TOMI](https://arxiv.org/abs/2506.23094), then evolved through listening tests toward a style-neutral Codex-plus-engine workflow.
+
+## What's new in Composition 1.1
+
+Composition 1.1 is a backward-compatible extension of Composition 1.0. It adds:
+
+- explicit phrase scope, attention, boundary, continuity, tension, and goal
+  intent;
+- phrase stages with attack, connection, gesture-span, and polyphonic-attack
+  budgets;
+- one observable phrase focus through salience, density, or duration;
+- explicit musical arrivals with closure, hold, harmonic-support, and
+  post-arrival contracts;
+- regular or intentionally irregular subphrase grouping, plus structural,
+  pickup, extension, and elision metric roles;
+- meter-aware `song.tactus()` and `song.bars()` authoring helpers;
+- metric-entry, tactus-alignment, and displaced-hold diagnostics;
+- diagnostics for unplanned hypermetric restarts and repeated one-tactus
+  subtraction patterns;
+- declared silence and role-interaction contracts for phrasing and
+  arrangement checks.
+
+These contracts describe authored intent without adding a genre template.
+They let diagnostics distinguish incomplete phrases, overrun endings,
+breathless streams, detached foreground clocks, and accidental odd-length
+grouping instead of treating every legal note as equally successful.
+
+## Versioning
+
+- BeatFlow product version: `2.0`
+- Composition interchange schema: `1.1` by default; `1.0` remains readable
+- Compiled Project schema: `1.0`
+
+The diagnostic report is advisory engine output rather than a stable
+interchange format, so it does not have a separate public schema version.
 
 ## Install
 
@@ -167,7 +206,7 @@ python scripts\run.py self-check
 
 The test suite covers models, exact rational timing, meter-aware addressing, validation, diagnostics, deterministic compilation, occurrence arrangements, MIDI rendering, and controller output.
 
-## Composition 1.0
+## Composition 1.1
 
 The canonical representation provides:
 
@@ -176,11 +215,26 @@ The canonical representation provides:
 - functional or absolute pitch targets;
 - optional highest-note targets for designed chord voice leading;
 - general musical roles instead of genre-specific parts;
+- optional phrase scope, attention, boundary, continuity, and tension intent;
+- optional internal phrase stages, attack budgets, and one observable focus
+  cue;
+- optional regular or irregular subphrase grouping and structural metric
+  roles;
+- optional gesture-span and polyphonic-attack budgets for foreground texture;
+- optional phrase-linked arrival, hold, harmonic-stability, and post-action
+  intent;
+- optional declared silence windows and role-onset interaction contracts;
 - target duration and occurrence-level arrangement changes;
 - deterministic compilation and Standard MIDI rendering;
-- advisory diagnostics for meter, phrasing, role interaction, repetition, attention competition, and structural non-chord tones.
+- advisory diagnostics for meter, shared release, bar density, phrasing, role interaction, repetition, attention competition, and structural non-chord tones.
 
 There is no global swing field, groove library, cadence requirement, or genre template. Swing, straight time, rubato, polymeter, and other feels are authored as musical event timing.
+
+Phrase diagnostics are informed by research on perceptual boundaries,
+melodic completion, formal function, melodic memory, expectation, tension,
+metrical and event hierarchy, and hierarchical musical structure.
+See [Research foundations](references/research-foundations.md). The metrics
+expose evidence; they do not assign a taste score.
 
 The engine deliberately ships no notation corpus, samples, synthesizer, mix engine, mastering, or frontend. General MIDI playback is a symbolic preview; production timbre depends on the destination instruments, sound library, or DAW.
 
@@ -190,7 +244,7 @@ The engine deliberately ships no notation corpus, samples, synthesizer, mix engi
 - `agents/openai.yaml`: Codex skill interface metadata
 - `scripts/beatflow_core`: models, DSL, compiler, validators, diagnostics, and MIDI renderer
 - `scripts/run.py`: dependency-aware cached launcher
-- `examples`: three MP3 previews with their corresponding MIDI files
+- `examples`: four MIDI snapshots with matching MP3 previews
 - `references`: format, architecture, and musical decision guidance
 - `tests`: unit and end-to-end behavior tests
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Compact CLI for Composition 1.0 validation, diagnostics, and MIDI export."""
+"""Compact CLI for Composition 1.1 validation, diagnostics, and MIDI export."""
 
 from __future__ import annotations
 
@@ -101,7 +101,7 @@ def command_schema(args: argparse.Namespace) -> int:
         args.output,
         summary_when_written={
             "written": str(Path(args.output).expanduser().resolve()),
-            "schema": "BeatFlow Composition 1.0",
+            "schema": "BeatFlow Composition 1.1",
         }
         if args.output
         else None,
@@ -494,7 +494,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"BeatFlow {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    schema = subparsers.add_parser("schema", help="Print Composition 1.0 JSON Schema.")
+    schema = subparsers.add_parser("schema", help="Print Composition 1.1 JSON Schema.")
     schema.add_argument("--output")
     schema.set_defaults(function=command_schema)
 

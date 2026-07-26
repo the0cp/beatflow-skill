@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Small Python authoring DSL for style-neutral Composition 1.0 plans."""
+"""Small Python authoring DSL for style-neutral Composition 1.1 plans."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from fractions import Fraction
 from typing import Iterable
 
 from .composition_models import (
+    ArrivalIntent,
     BeatTime,
     ChordEvent,
     Composition,
@@ -17,9 +18,13 @@ from .composition_models import (
     PitchedEvent,
     PitchTarget,
     PlaySection,
+    PhraseIntent,
+    PhraseStageIntent,
     SectionPlan,
     SegmentPlan,
     SegmentTreatment,
+    SilenceIntent,
+    TensionContour,
     TrackPlan,
 )
 from .models import KeySignature, Mode, TimeSignature
@@ -234,6 +239,10 @@ class SectionBuilder:
     length_bars: int
     energy: float
     harmony: list[HarmonySpan]
+    phrases: list[PhraseIntent]
+    phrase_stages: list[PhraseStageIntent]
+    arrivals: list[ArrivalIntent]
+    silences: list[SilenceIntent]
     segments: list[SegmentPlan]
 
     @property
@@ -273,6 +282,168 @@ class SectionBuilder:
             function=function,
         )
 
+    def silence(
+        self,
+        id: str,
+        onset: TimeLike,
+        duration: TimeLike,
+        *,
+        functions: list[str] | None = None,
+        description: str = "",
+    ) -> "SectionBuilder":
+        """Declare a window that all or selected functions should leave empty."""
+
+        self.silences.append(
+            SilenceIntent(
+                id=id,
+                onset=self.owner.time(onset),
+                duration=self.owner.time(duration),
+                functions=functions or [],
+                description=description,
+            )
+        )
+        return self
+
+    def phrase(
+        self,
+        id: str,
+        onset: TimeLike,
+        duration: TimeLike,
+        *,
+        functions: list[str] | None = None,
+        attention: str | None = None,
+        boundary_strength: float = 0.5,
+        max_continuous: TimeLike | None = None,
+        grouping: str = "free",
+        subphrase_bars: list[int] | None = None,
+        tension: tuple[float, float, float] | None = None,
+        goal: str = "",
+    ) -> "SectionBuilder":
+        """Declare phrase scope, release intent, and optional tension shape."""
+
+        self.phrases.append(
+            PhraseIntent(
+                id=id,
+                onset=self.owner.time(onset),
+                duration=self.owner.time(duration),
+                functions=functions or [],
+                attention=attention,
+                boundary_strength=boundary_strength,
+                max_continuous_beats=(
+                    self.owner.time(max_continuous)
+                    if max_continuous is not None
+                    else None
+                ),
+                grouping=grouping,
+                subphrase_bars=subphrase_bars or [],
+                tension=(
+                    TensionContour(
+                        start=tension[0],
+                        peak=tension[1],
+                        end=tension[2],
+                    )
+                    if tension is not None
+                    else None
+                ),
+                goal=goal,
+            )
+        )
+        return self
+
+    def arrival(
+        self,
+        id: str,
+        phrase_id: str,
+        onset: TimeLike,
+        *,
+        functions: list[str] | None = None,
+        closure: str = "partial",
+        strength: float = 0.5,
+        min_hold: TimeLike | None = None,
+        harmonic_stability: str = "free",
+        post_action: str = "stop",
+        max_post_attacks: int = 0,
+        goal: str = "",
+    ) -> "SectionBuilder":
+        """Declare the audible completion point inside a phrase."""
+
+        self.arrivals.append(
+            ArrivalIntent(
+                id=id,
+                phrase_id=phrase_id,
+                onset=self.owner.time(onset),
+                functions=functions or [],
+                closure=closure,
+                strength=strength,
+                min_hold=(
+                    self.owner.time(min_hold)
+                    if min_hold is not None
+                    else None
+                ),
+                harmonic_stability=harmonic_stability,
+                post_action=post_action,
+                max_post_attacks=max_post_attacks,
+                goal=goal,
+            )
+        )
+        return self
+
+    def phrase_stage(
+        self,
+        id: str,
+        phrase_id: str,
+        onset: TimeLike,
+        duration: TimeLike,
+        *,
+        functions: list[str] | None = None,
+        role: str = "develop",
+        min_attacks: int = 0,
+        max_attacks: int = 256,
+        min_connected_ratio: float | None = None,
+        max_gesture: TimeLike | None = None,
+        min_polyphonic_attacks: int = 0,
+        max_polyphonic_attacks: int = 256,
+        metric_role: str = "free",
+        entry_anchor: str = "free",
+        min_tactus_attack_ratio: float | None = None,
+        max_off_tactus_bridge_ratio: float | None = None,
+        exit_behavior: str = "free",
+        focus: bool = False,
+        focus_cue: str | None = None,
+        goal: str = "",
+    ) -> "SectionBuilder":
+        """Declare one internally contrasted stage of a phrase."""
+
+        self.phrase_stages.append(
+            PhraseStageIntent(
+                id=id,
+                phrase_id=phrase_id,
+                onset=self.owner.time(onset),
+                duration=self.owner.time(duration),
+                functions=functions or [],
+                role=role,
+                min_attacks=min_attacks,
+                max_attacks=max_attacks,
+                min_connected_ratio=min_connected_ratio,
+                max_gesture_beats=(
+                    self.owner.time(max_gesture)
+                    if max_gesture is not None
+                    else None
+                ),
+                min_polyphonic_attacks=min_polyphonic_attacks,
+                max_polyphonic_attacks=max_polyphonic_attacks,
+                metric_role=metric_role,
+                entry_anchor=entry_anchor,
+                min_tactus_attack_ratio=min_tactus_attack_ratio,
+                max_off_tactus_bridge_ratio=max_off_tactus_bridge_ratio,
+                exit_behavior=exit_behavior,
+                focus=focus,
+                focus_cue=focus_cue,
+                goal=goal,
+            )
+        )
+        return self
+
     def segment(
         self,
         id: str,
@@ -308,6 +479,22 @@ class SectionBuilder:
                 harmony=sorted(
                     self.harmony,
                     key=lambda item: item.onset.fraction,
+                ),
+                phrases=sorted(
+                    self.phrases,
+                    key=lambda item: (item.onset.fraction, item.id),
+                ),
+                phrase_stages=sorted(
+                    self.phrase_stages,
+                    key=lambda item: (item.onset.fraction, item.id),
+                ),
+                arrivals=sorted(
+                    self.arrivals,
+                    key=lambda item: (item.onset.fraction, item.id),
+                ),
+                silences=sorted(
+                    self.silences,
+                    key=lambda item: (item.onset.fraction, item.id),
                 ),
                 segments=sorted(
                     self.segments,
@@ -368,6 +555,30 @@ class SongBuilder:
             denominator=fraction.denominator,
         )
 
+    def tactus(
+        self,
+        numerator: int,
+        denominator: int = 1,
+    ) -> BeatTime:
+        """Create a duration in the meter's perceptual beats."""
+
+        count = Fraction(numerator, denominator)
+        if count < 0:
+            raise ValueError("tactus values cannot be negative")
+        return self.time(meter_profile(self.time_signature).tactus * count)
+
+    def bars(
+        self,
+        numerator: int,
+        denominator: int = 1,
+    ) -> BeatTime:
+        """Create a duration in measures of the current meter."""
+
+        count = Fraction(numerator, denominator)
+        if count < 0:
+            raise ValueError("bar values cannot be negative")
+        return self.time(self.beats_per_bar * count)
+
     def at(
         self,
         bar: int,
@@ -425,7 +636,19 @@ class SongBuilder:
         bars: int,
         energy: float,
     ) -> SectionBuilder:
-        return SectionBuilder(self, id, name, bars, energy, [], [])
+        return SectionBuilder(
+            self,
+            id,
+            name,
+            bars,
+            energy,
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
 
     def play(
         self,
