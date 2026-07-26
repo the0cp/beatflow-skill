@@ -68,6 +68,16 @@ python scripts/run.py inspect song.mid
 python scripts/run.py self-check
 ```
 
+## Examples
+
+These are output snapshots for listening and inspection, not style templates or source material used by the engine.
+
+| Composition | MP3 preview | MIDI | Focus |
+| --- | --- | --- | --- |
+| Neo Soul | [Listen or download](examples/neo-soul.mp3) | [Download MIDI](examples/neo-soul.mid) | Extended voicings, independent bass, and foreground space |
+| Funk | [Listen or download](examples/funk.mp3) | [Download MIDI](examples/funk.mid) | Rhythm-guitar instrument contract and interlocking groove |
+| Theme and Variation | [Listen or download](examples/theme-and-variation.mp3) | [Download MIDI](examples/theme-and-variation.mid) | Motivic development across contrasting variations |
+
 ## Upgrade
 
 These commands apply to a manual Git clone installation.
@@ -140,6 +150,7 @@ The engine deliberately ships no notation corpus, samples, synthesizer, mix engi
 - `agents/openai.yaml`: Codex skill interface metadata
 - `scripts/beatflow_core`: models, DSL, compiler, validators, diagnostics, and MIDI renderer
 - `scripts/run.py`: dependency-aware cached launcher
+- `examples`: three MP3 previews with their corresponding MIDI files
 - `references`: format, architecture, and musical decision guidance
 - `tests`: unit and end-to-end behavior tests
 
