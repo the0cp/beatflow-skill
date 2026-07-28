@@ -3,10 +3,11 @@
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass
-import math
 from pathlib import Path
+
 from mido import Message, MetaMessage, MidiFile, MidiTrack, bpm2tempo
 from pydantic import BaseModel, ConfigDict
 

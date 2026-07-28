@@ -8,7 +8,6 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-
 Identifier = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]
 
 
@@ -173,7 +172,7 @@ class CompositionLink(StrictModel):
     occurrence_ids: list[Identifier] | None = None
 
     @model_validator(mode="after")
-    def occurrence_filter_cannot_be_empty(self) -> "CompositionLink":
+    def occurrence_filter_cannot_be_empty(self) -> CompositionLink:
         if self.occurrence_ids == []:
             raise ValueError("occurrence_ids must be null or contain at least one occurrence id")
         return self

@@ -1,8 +1,8 @@
 # Composition 1.1 format
 
-Composition 1.1 is the default authored format. The parser also accepts
-Composition 1.0 artifacts; fields introduced in 1.1 use backward-compatible
-defaults when absent. The compiled Project schema remains at 1.0.
+Composition 1.1 is the authored interchange format. Optional fields use
+backward-compatible defaults when absent. The compiled Project is an internal
+rendering model.
 
 ## Authoring boundary
 
@@ -102,14 +102,9 @@ must remain inside its span. Optional fields express:
 the phrase grouping, tactus activity, attack, gesture-span, and
 polyphonic-attack budgets, metric role and entry, tactus alignment, displaced
 holds, internal connected-pair ratio, exit gap, and selected focus cue with
-realized events. These fields are authored
-expectations, not style defaults. See
-[internal-phrase-shape.md](internal-phrase-shape.md) and
-[melodic-continuation.md](melodic-continuation.md), and
-[temporal-coordination.md](temporal-coordination.md). See
-[gesture-and-foreground-texture.md](gesture-and-foreground-texture.md) when
-contrasting gesture lengths, density modes, or monophonic and polyphonic
-foreground attacks.
+realized events. These fields are authored expectations, not style defaults.
+See [phrasing-and-coordination.md](phrasing-and-coordination.md) for metric
+entry, gesture connection, density, foreground texture, and continuation.
 
 Use `section.arrival(id, phrase_id, onset, ...)` to declare one primary point
 of completion inside a phrase. Optional fields express:
@@ -128,7 +123,8 @@ of completion inside a phrase. Optional fields express:
 Each phrase may have at most one primary arrival. `arrival()` does not
 generate or alter events. Diagnostics distinguish a missing or unarticulated
 arrival, a short hold, surplus post-arrival attacks, and observable harmonic
-support. See [arrival-and-closure.md](arrival-and-closure.md).
+support. See
+[phrasing-and-coordination.md](phrasing-and-coordination.md).
 
 ## Events
 

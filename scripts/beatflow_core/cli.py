@@ -6,9 +6,9 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
-from pathlib import Path
 import sys
 import tempfile
+from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
@@ -58,7 +58,7 @@ def _load_composition_script(path: str | Path) -> Composition:
     spec.loader.exec_module(module)
     build = getattr(module, "build", None)
     if not callable(build):
-        raise ValueError("Composition script must define a callable build().")
+        raise TypeError("Composition script must define a callable build().")
     result = build()
     return result if isinstance(result, Composition) else Composition.model_validate(result)
 

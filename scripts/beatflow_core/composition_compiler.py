@@ -31,7 +31,6 @@ from .models import (
 )
 from .validation import ValidationReport
 
-
 MODE_INTERVALS = {
     "major": [0, 2, 4, 5, 7, 9, 11],
     "minor": [0, 2, 3, 5, 7, 8, 10],
@@ -180,11 +179,11 @@ def _transition_cost(
         cost += (distance - 7) * 0.9
     if distance >= 12:
         cost += 5.0
-    if current.contour == "up" and interval <= 0:
-        cost += 3.0
-    elif current.contour == "down" and interval >= 0:
-        cost += 3.0
-    elif current.contour == "hold" and distance > 2:
+    if (
+        (current.contour == "up" and interval <= 0)
+        or (current.contour == "down" and interval >= 0)
+        or (current.contour == "hold" and distance > 2)
+    ):
         cost += 3.0
     if previous.motif and previous.motif == current.motif and distance > 9:
         cost += 1.5

@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
+import math
 from collections import Counter, defaultdict
 from fractions import Fraction
-import math
+from itertools import pairwise
 from statistics import median
 from typing import Any, Literal
 
@@ -83,7 +84,7 @@ def _segment_metrics(composition: Composition, segment) -> dict[str, Any]:
     rest_gaps: list[Fraction] = []
     if pitched:
         ordered = sorted(pitched, key=lambda event: event.onset.fraction)
-        for previous, current in zip(ordered, ordered[1:]):
+        for previous, current in pairwise(ordered):
             previous_end = previous.onset.fraction + previous.duration.fraction
             if current.onset.fraction > previous_end:
                 rest_gaps.append(current.onset.fraction - previous_end)
@@ -256,8 +257,9 @@ def _merge_spans(
     if not spans:
         return []
     merged: list[tuple[Fraction, Fraction]] = []
-    current_start, current_end = sorted(spans)[0]
-    for start, end in sorted(spans)[1:]:
+    ordered = sorted(spans)
+    current_start, current_end = ordered[0]
+    for start, end in ordered[1:]:
         if start <= current_end:
             current_end = max(current_end, end)
         else:
@@ -331,7 +333,7 @@ def _section_attack_density(
                 per_bar[bar] += 1
     adjacent = [
         abs(current - previous)
-        for previous, current in zip(per_bar, per_bar[1:])
+        for previous, current in pairwise(per_bar)
     ]
     largest_index = (
         adjacent.index(max(adjacent)) + 1
@@ -393,16 +395,6 @@ def _phrase_events(section, phrase) -> list[tuple[str, PitchedEvent | ChordEvent
             if isinstance(event, (PitchedEvent, ChordEvent)):
                 result.append((segment.id, event))
     return result
-
-
-def _longest_continuous_phrase_span(
-    spans: list[tuple[Fraction, Fraction]],
-    tactus: Fraction,
-) -> Fraction:
-    """Measure activity connected by gaps shorter than one perceptual beat."""
-
-    values = _continuous_span_lengths(spans, tactus)
-    return max(values, default=Fraction(0))
 
 
 def _continuous_span_lengths(
@@ -722,7 +714,7 @@ def _phrase_stage_metrics(
     internal_gaps: list[Fraction] = []
     gate_ratios: list[float] = []
     for group in event_groups:
-        for left, right in zip(group, group[1:], strict=False):
+        for left, right in pairwise(group):
             inter_onset = right.onset.fraction - left.onset.fraction
             if inter_onset <= 0:
                 continue
@@ -2499,7 +2491,7 @@ def diagnose_composition(composition: Composition) -> DiagnosticReport:
             ]
             changes = sum(
                 current != previous
-                for previous, current in zip(directions, directions[1:])
+                for previous, current in pairwise(directions)
             )
             metrics = {
                 "notes": len(line),

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-from fractions import Fraction
-from pathlib import Path
 import tempfile
 import unittest
+from fractions import Fraction
+from pathlib import Path
 
 from beatflow_core.composer import SongBuilder, beat, chord, midi, next_chord, scale
 from beatflow_core.composition_compiler import compile_composition
@@ -1709,6 +1709,29 @@ class BeatFlowCompositionTests(unittest.TestCase):
         self.assertEqual(normalize_chord_symbol("Bb13"), "B-13")
         chord_value = parse_chord_symbol("Bb13")
         self.assertEqual(chord_value.root().pitchClass, 10)
+
+    def test_harmony_validation_reports_invalid_and_missing_degrees(self) -> None:
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["harmony"][0]["symbol"] = "not-a-chord"
+        invalid = validate_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "invalid_chord_symbol",
+            {issue.code for issue in invalid.issues},
+        )
+
+        payload = small_composition().model_dump(mode="json")
+        payload["sections"][0]["harmony"][0]["symbol"] = "C"
+        bass = next(
+            segment
+            for segment in payload["sections"][0]["segments"]
+            if segment["id"] == "seg_bass"
+        )
+        bass["events"][0]["target"]["degree"] = 7
+        unavailable = validate_composition(Composition.model_validate(payload))
+        self.assertIn(
+            "unavailable_chord_degree",
+            {issue.code for issue in unavailable.issues},
+        )
 
     def test_compilation_is_deterministic(self) -> None:
         composition = small_composition()

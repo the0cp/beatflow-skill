@@ -11,7 +11,6 @@ from pydantic import Field, field_validator, model_validator
 
 from .models import Identifier, KeySignature, StrictModel, TimeSignature
 
-
 Articulation = Literal["staccato", "detached", "normal", "tenuto", "legato"]
 Contour = Literal["up", "down", "hold", "free"]
 MusicalFunction = Literal[
@@ -102,7 +101,7 @@ class TrackPlan(StrictModel):
     center_pitch: int = Field(default=66, ge=0, le=127)
 
     @model_validator(mode="after")
-    def register_is_ordered(self) -> "TrackPlan":
+    def register_is_ordered(self) -> TrackPlan:
         if not self.register_low <= self.center_pitch <= self.register_high:
             raise ValueError(
                 "register_low <= center_pitch <= register_high is required"
@@ -119,7 +118,7 @@ class HarmonySpan(StrictModel):
     function: str = Field(default="", max_length=100)
 
     @model_validator(mode="after")
-    def duration_is_positive(self) -> "HarmonySpan":
+    def duration_is_positive(self) -> HarmonySpan:
         if self.duration.numerator == 0:
             raise ValueError("harmony duration must be positive")
         return self
@@ -140,7 +139,7 @@ class PitchTarget(StrictModel):
     semitones: int | None = Field(default=None, ge=-36, le=36)
 
     @model_validator(mode="after")
-    def fields_match_basis(self) -> "PitchTarget":
+    def fields_match_basis(self) -> PitchTarget:
         degree_bases = {"chord", "chord_index", "scale", "next_chord"}
         if self.basis in degree_bases and self.degree is None:
             raise ValueError(f"{self.basis} targets require degree")
@@ -193,7 +192,7 @@ class ChordEvent(EventBase):
     accent: float = Field(default=0.64, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
-    def range_is_ordered(self) -> "ChordEvent":
+    def range_is_ordered(self) -> ChordEvent:
         if self.low is not None and self.high is not None and self.low >= self.high:
             raise ValueError("chord low must be below chord high")
         if self.top_target is not None and self.top_target.basis == "relative":
@@ -234,7 +233,7 @@ class SegmentPlan(StrictModel):
         return value
 
     @model_validator(mode="after")
-    def boundaries_and_order_are_valid(self) -> "SegmentPlan":
+    def boundaries_and_order_are_valid(self) -> SegmentPlan:
         if self.duration.numerator == 0:
             raise ValueError("segment duration must be positive")
         onsets = [event.onset.fraction for event in self.events]
@@ -262,7 +261,7 @@ class SilenceIntent(StrictModel):
         return value
 
     @model_validator(mode="after")
-    def duration_is_positive(self) -> "SilenceIntent":
+    def duration_is_positive(self) -> SilenceIntent:
         if self.duration.numerator == 0:
             raise ValueError("silence duration must be positive")
         return self
@@ -276,7 +275,7 @@ class TensionContour(StrictModel):
     end: float = Field(ge=0.0, le=1.0)
 
     @model_validator(mode="after")
-    def peak_is_the_high_point(self) -> "TensionContour":
+    def peak_is_the_high_point(self) -> TensionContour:
         if self.peak < max(self.start, self.end):
             raise ValueError("tension peak cannot be below start or end")
         return self
@@ -307,7 +306,7 @@ class PhraseIntent(StrictModel):
         return value
 
     @model_validator(mode="after")
-    def phrase_values_are_valid(self) -> "PhraseIntent":
+    def phrase_values_are_valid(self) -> PhraseIntent:
         if self.duration.numerator == 0:
             raise ValueError("phrase duration must be positive")
         if (
@@ -383,7 +382,7 @@ class PhraseStageIntent(StrictModel):
         return value
 
     @model_validator(mode="after")
-    def stage_values_are_valid(self) -> "PhraseStageIntent":
+    def stage_values_are_valid(self) -> PhraseStageIntent:
         if self.duration.numerator == 0:
             raise ValueError("phrase stage duration must be positive")
         if self.min_attacks > self.max_attacks:
@@ -438,7 +437,7 @@ class ArrivalIntent(StrictModel):
         return value
 
     @model_validator(mode="after")
-    def arrival_values_are_valid(self) -> "ArrivalIntent":
+    def arrival_values_are_valid(self) -> ArrivalIntent:
         if self.min_hold is not None and self.min_hold.numerator == 0:
             raise ValueError("arrival min_hold must be positive")
         if self.post_action == "stop" and self.max_post_attacks:
@@ -468,7 +467,7 @@ class SegmentTreatment(StrictModel):
     gate_scale: float = Field(default=1.0, ge=0.1, le=2.0)
 
     @model_validator(mode="after")
-    def disabled_treatment_has_no_transform(self) -> "SegmentTreatment":
+    def disabled_treatment_has_no_transform(self) -> SegmentTreatment:
         if self.enabled is False and (
             self.transpose_semitones
             or self.octave_shift
@@ -509,7 +508,7 @@ class InteractionIntent(StrictModel):
     description: str = Field(default="", max_length=300)
 
     @model_validator(mode="after")
-    def overlap_range_is_ordered(self) -> "InteractionIntent":
+    def overlap_range_is_ordered(self) -> InteractionIntent:
         if self.minimum_overlap > self.maximum_overlap:
             raise ValueError("minimum_overlap cannot exceed maximum_overlap")
         return self

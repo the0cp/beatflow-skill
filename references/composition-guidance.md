@@ -1,145 +1,117 @@
 # Composition guidance
 
-BeatFlow provides a language and a verification pipeline, not a style recipe. Codex must make the musical decisions.
+Use this guide for the decisions that remain musical rather than mechanical.
+BeatFlow supplies an authoring language and verification pipeline; it does not
+choose a style.
 
-## Begin with causality
+## Plan causality
 
-Write a one-paragraph intent before events. Identify what creates motion, what anchors it, what leads attention, what creates contrast, and where the listener should feel arrival. Then design meter and phrase, harmonic rhythm, role interaction, and finally notes.
+Write one short intent paragraph before events. Name:
 
-A useful role plan answers:
+- the role that makes time legible;
+- the role that leads attention;
+- the source of motion;
+- the main contrast;
+- the important arrival;
+- the intended energy path.
 
-- Which role owns the main time reference?
-- Which attacks are shared ensemble statements?
-- Which parts answer, leave space, or pull against that reference?
-- Where does foreground density rise and fall?
-- Which harmony changes demand melodic or bass preparation?
-
-Independence is not randomness. Parts can share meter and harmonic time while using different attack sets.
-
-Turn the plan into executable intent. Declare phrase scope and perceptual
-goals with `section.phrase(...)`, declare the primary point of completion
-with `section.arrival(...)`, and use `section.phrase_stage(...)` when a
-prominent line needs an executable internal density and focus plan. Then
-reserve structurally necessary empty windows
-with `section.silence(...)`. When independence, call-and-response,
-interlocking, or handoff is central to the brief, declare the expected onset
-relationship with `interaction()` instead of relying on prose alone. See
-[arrival-and-closure.md](arrival-and-closure.md) before writing a prominent
-terminal gesture.
-
-Before pitch generation, make a shared-clock pass. Mark bar downbeats, tactus
-anchors, harmony changes, bass arrivals, phrase entries, and planned
-displacements. A quantized pickup is not coordinated merely because its
-fraction is exact. Important foreground attacks and durations must preserve
-the same recoverable accent hierarchy as the accompaniment. See
-[temporal-coordination.md](temporal-coordination.md).
+Independence is not randomness. Parts may use different attack sets while
+sharing meter, harmonic time, and structural arrivals.
 
 ## Protect the instrument contract
 
-Classify the planned instrumentation before writing events:
+Classify instrumentation before writing:
 
-- `essential`: explicitly requested or responsible for the intended ensemble identity;
-- `substitutable`: its musical function must survive, but another instrument may carry it;
-- `optional`: decorative, alternate, or developmental material that may be removed after comparison.
+- `essential`: explicitly requested or identity-bearing;
+- `substitutable`: preserve the function, but allow another instrument;
+- `optional`: decoration, alternate color, or developmental material.
 
-Record the classification in the composition intent, priorities, or exclusions. A genre label informs the decision but does not automatically make every conventional instrument essential.
+Classify prominence separately as `primary`, `co-primary`, `support`, or
+`background`. Essential does not imply loud or dense.
 
-Classify prominence separately as primary, co-primary, support, or background.
-An essential instrument may still be support. After rendering, inspect each
-track's realized note count and average velocity, then audition primary/support
-pairs. These values do not predict synthesizer loudness, but a support part
-that is both denser and materially stronger is a concrete masking risk.
+When a part fails, distinguish weak function, weak writing, weak balance, and
+weak playback timbre. Mute it for diagnosis, but do not remove an essential
+role merely because its preview sound is poor. First revise rhythm, register,
+voicing, density, velocity, volume, handoff, or MIDI program.
 
-When a part fails, distinguish among a weak role, weak writing, weak balance,
-and weak playback timbre. Muting is useful for diagnosis, but it does not
-cancel an essential part. Rewrite its rhythm, register, voicing, density,
-velocity, volume, or relationship first; change its preview program or
-destination sound when timbre is the problem. Change the contract only after
-explaining the tradeoff and obtaining user approval.
+## Compose by layers
 
-## Hear hierarchy, not only grid
+1. Fix duration, form, tempo, meter, key, and harmonic route.
+2. Mark phrase spans, grouping, attention, and arrival points.
+3. Write pulse, bass, harmony, role entries, and releases.
+4. Render the skeleton and confirm one recoverable clock.
+5. Add foreground rhythm before foreground pitch.
+6. Add passing detail, fills, counterlines, and articulation last.
 
-Quantization only says that an attack is measurable. It does not say that its metric role is legible. Choose the tactus and its simple or compound division, establish phrase and bar downbeats, then decide which weak positions create syncopation against them.
+Every decoration should strengthen identity, direction, tension, release, or
+role interaction. If removing an attack changes none of those, remove it.
 
-Distinguish the harmony span from a performed chord attack. When every voicing waits for an unrelated subdivision position, the listener hears floating harmony even though the data is perfectly quantized.
+## Write relationships
 
-## Phrase before pitch list
+Use explicit intent when the relationship matters:
 
-For each foreground phrase, decide:
+- `phrase()` for scope, grouping, attention, tension, and continuity;
+- `phrase_stage()` for internal jobs, density, connection, metric role, and
+  foreground texture;
+- `arrival()` for the primary completion point and permitted aftermath;
+- `silence()` for a required empty window;
+- `interaction()` for onset overlap between roles;
+- `top_target` for a designed chord upper line.
 
-- rhythmic identity;
-- contrasting short and long gesture spans;
-- whether each sparse passage is singable or each dense passage is
-  instrumentally directional;
-- where a polyphony-capable foreground uses single notes, dyads, or chordal
-  punctuation;
-- starting state and destination;
-- one or two recognizable transformations;
-- contour and register;
-- tension and release;
-- breath or handoff.
+Do not declare every available field. Add a contract only when violating it
+would change the intended music.
 
-Map those decisions to a few metrically grounded stages before writing a
-pitch list. Give stages different formal jobs or attack budgets, and mark at
-most one focus through salience, density, or duration. Decide whether each
-stage should continue without a perceptual break, end in a breath, or reach an
-arrival. When a stage should sound like one word or gesture, declare
-`min_connected_ratio` and let most internal durations reach the next onset.
-When a stage contains several utterances, declare `max_gesture`; when a piano
-or ensemble line changes foreground texture, declare a small
-polyphonic-attack budget.
-When shared time is essential, optionally declare its `entry_anchor`,
-`min_tactus_attack_ratio`, and `max_off_tactus_bridge_ratio`. Do not set these
-from a genre preset; choose them from the phrase's actual metric job.
-A structural stage must begin at the phrase start or a declared subphrase
-boundary. Keep regular stage lengths when content contrast already supplies
-the needed shape.
-A new formal job does not require a rest, while a connected phrase does not
-require every note to be legato. Do not impose the same stage sequence on
-every phrase. See
-[internal-phrase-shape.md](internal-phrase-shape.md) and
-[melodic-continuation.md](melodic-continuation.md).
+## Build distinct candidates
 
-Then choose functional targets. Stable tones, chromatic approaches, chord extensions, leaps, and repetitions are all valid when they serve the phrase. Do not assume that pitch-class correctness creates a convincing line.
+Change a causal layer rather than a cosmetic parameter:
 
-When the theme carries the work, do not move straight from a prose brief to
-a complete long form. Write at least three short candidates that differ in
-rhythm, contour, interruption, or phrase placement. Include an exact or
-near-exact restatement before heavy transformation, render the candidates,
-and select by listening. Development cannot rescue a subject that has no
-recognizable identity.
-
-## Express time directly
-
-Every event has an exact section-local onset and duration in quarter-note beats. Use rational values such as `beat(1, 3)` for tuplets. A swung or asymmetric feel is a pattern of authored onsets and durations, not a global renderer switch.
-
-The PPQ must represent every rational time exactly. The default 960 supports common halves, thirds, quarters, fifths, sixths, eighths, tenths, twelfths, and sixteenths.
-
-## Arrange with space
-
-Treat silence, register, note length, and role handoff as compositional material. A harmony role need not re-attack continuously, but a changed harmony must become perceptible through bass, voicing, sustain, or another role. A foreground need not occupy the whole section. Bass and pulse may coincide selectively while retaining independent motion.
-
-A token half-beat gap repeated inside otherwise continuous writing is not automatically a phrase boundary. Inspect both each role's rests and the full pitched texture's shared releases. At important endings, combine more than one cue: space or handoff, lengthening, thinning, contour closure, harmonic arrival, register, or dynamics. Preserve continuous motor writing when it is intentional; otherwise make selected boundaries structurally audible and vary their strength.
-
-Use different chord sizes and registers when the texture calls for it. The compiler minimizes voicing motion, but it cannot decide where the arrangement needs silence or a fuller attack.
-
-## Candidate diversity
-
-When generating alternatives, change at least one causal layer:
-
-- phrase rhythm and rest placement;
+- phrase rhythm or rest placement;
 - role relationship;
 - harmonic path or harmonic rhythm;
-- formal contrast;
-- register and density trajectory.
+- formal route;
+- register, density, or texture trajectory.
 
-Do not call transposition, a new random seed, or minor velocity edits a new candidate.
+Do not treat transposition, a different seed, or minor velocity edits as a new
+candidate. For identity-bearing material, audition short candidates before
+developing a complete form.
 
-## Listening loop
+## Diagnose the responsible layer
 
-Inspect and diagnose first, but select by listening. If timing feels wrong, revise rhythm and role relationships. If the line lacks direction, revise phrase design. If MIDI timbre is distracting, audition a clearer program or a better sound library before rewriting valid musical structure.
+| Symptom | Revise first |
+| --- | --- |
+| Timing feels arbitrary | Meter, tactus, and role anchor map |
+| Melody implies another tempo | Foreground attack-and-duration skeleton |
+| Chords float between beats | Harmonic change and performed re-attack placement |
+| Melody hesitates | Gesture connection and boundary placement |
+| Phrase feels unfinished | Arrival articulation, hold, and harmonic support |
+| Phrase overruns | Post-arrival function and earliest complete stopping point |
+| Melody is flat | Stage jobs, density, contour, register, and focus |
+| Parts move as one block | Role ownership, handoff, and interaction intent |
+| Sections sound alike | Form, active layers, density, and harmonic rhythm |
+| Harmony feels arbitrary | Structural chord tones and audible resolutions |
+| Support masks the anchor | Register, note count, velocity, and volume |
+| Sound is harsh or weak | MIDI program or destination instrument |
 
-See [research-foundations.md](research-foundations.md) for the evidence and
-limitations behind boundary, memory, expectation, tension, and hierarchy
-guidance, including why grouping boundaries and musical completion are
-modeled separately.
+Repair the highest row of causality that explains the failure. Do not start
+with individual pitch substitutions when the rhythm, role, or phrase plan is
+wrong.
+
+## Listen in layers
+
+Compare:
+
+1. pulse, bass, and harmony;
+2. foreground rhythm on one pitch;
+3. foreground alone;
+4. full arrangement;
+5. full arrangement with each optional layer muted.
+
+Diagnostics expose measurable conflicts and degeneration signals. They do not
+decide taste. Preserve unusual meter, continuous motor rhythm, dense
+counterpoint, sparse melody, or syncopation when the brief and listening result
+support them.
+
+For detailed phrase, timing, melody, and arrival work, read
+[phrasing-and-coordination.md](phrasing-and-coordination.md). For the
+underlying evidence and its limits, read
+[research-foundations.md](research-foundations.md).

@@ -10,7 +10,7 @@ from beatflow_core.composition_compiler import compile_composition
 from beatflow_core.models import Project
 from beatflow_core.renderer import materialize_notes
 from beatflow_core.validation import validate_project
-
+from pydantic import ValidationError
 from test_composition import small_composition
 
 
@@ -55,7 +55,7 @@ class BeatFlowProjectTests(unittest.TestCase):
     def test_schema_rejects_unknown_fields(self) -> None:
         payload = compile_composition(small_composition()).model_dump(mode="json")
         payload["surprise"] = True
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValidationError):
             Project.model_validate(payload)
 
     def test_json_round_trip(self) -> None:

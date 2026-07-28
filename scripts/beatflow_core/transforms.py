@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 import hashlib
 import random
+from dataclasses import dataclass, replace
 
 from .models import (
     GateTransform,
@@ -29,7 +29,7 @@ class RenderedNote:
 
 
 def _stable_rng(seed: int, identity: str) -> random.Random:
-    digest = hashlib.blake2b(f"{seed}:{identity}".encode("utf-8"), digest_size=8).digest()
+    digest = hashlib.blake2b(f"{seed}:{identity}".encode(), digest_size=8).digest()
     return random.Random(int.from_bytes(digest, byteorder="big", signed=False))
 
 

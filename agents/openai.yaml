@@ -1,8 +1,4 @@
 interface:
   display_name: "BeatFlow"
-  short_description: "Compose relational music and export MIDI"
-  brand_color: "#7C3AED"
-  default_prompt: "Use $beatflow-skill to compose and export original MIDI."
-
-policy:
-  allow_implicit_invocation: true
+  short_description: "Compose and validate multi-track MIDI"
+  default_prompt: "Use $beatflow-skill to compose and export an original multi-track MIDI piece."

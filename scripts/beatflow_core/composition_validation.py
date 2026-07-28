@@ -5,6 +5,9 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from fractions import Fraction
+from itertools import pairwise
+
+from music21.chord import ChordException
 
 from .composition_models import (
     BeatTime,
@@ -16,7 +19,6 @@ from .composition_models import (
 from .harmony_utils import parse_chord_symbol
 from .meter import meter_profile
 from .validation import Issue, ValidationReport
-
 
 STEP_INDEX = {"C": 0, "D": 1, "E": 2, "F": 3, "G": 4, "A": 5, "B": 6}
 
@@ -50,8 +52,21 @@ def _harmony_for_target(section, onset: Fraction, target):
     return section.harmony[-1] if section.harmony else None
 
 
+def _chord_degrees(symbol: str) -> set[int]:
+    parsed = parse_chord_symbol(symbol)
+    root = parsed.root()
+    if root is None or not parsed.pitches:
+        raise ValueError("no pitches")
+    root_step = STEP_INDEX[root.step]
+    return {
+        ((STEP_INDEX[pitch.step] - root_step) % 7) + 1
+        for pitch in parsed.pitches
+    }
+
+
 def validate_composition(composition: Composition) -> ValidationReport:
     issues: list[Issue] = []
+    harmony_degrees: dict[str, set[int]] = {}
 
     def add(
         severity: str,
@@ -367,11 +382,7 @@ def validate_composition(composition: Composition) -> ValidationReport:
                 indexed_stages,
                 key=lambda item: item[1].onset.fraction,
             )
-            for (left_index, left), (right_index, right) in zip(
-                ordered,
-                ordered[1:],
-                strict=False,
-            ):
+            for (left_index, left), (right_index, right) in pairwise(ordered):
                 left_end = left.onset.fraction + left.duration.fraction
                 if right.onset.fraction < left_end:
                     add(
@@ -537,10 +548,8 @@ def validate_composition(composition: Composition) -> ValidationReport:
                 ]
             )
             try:
-                parsed = parse_chord_symbol(span.symbol)
-                if not parsed.pitches:
-                    raise ValueError("no pitches")
-            except Exception as error:
+                harmony_degrees[span.symbol] = _chord_degrees(span.symbol)
+            except (ChordException, ValueError) as error:
                 add(
                     "error",
                     "invalid_chord_symbol",
@@ -728,38 +737,22 @@ def validate_composition(composition: Composition) -> ValidationReport:
                                     ),
                                 )
                             elif target.basis in {"chord", "next_chord"}:
-                                try:
-                                    parsed = parse_chord_symbol(harmony.symbol)
-                                    root = parsed.root()
-                                    if root is not None:
-                                        root_step = STEP_INDEX[root.step]
-                                        available = {
-                                            (
-                                                (
-                                                    STEP_INDEX[pitch.step]
-                                                    - root_step
-                                                )
-                                                % 7
-                                            )
-                                            + 1
-                                            for pitch in parsed.pitches
-                                        }
-                                        requested = (
-                                            (int(target.degree) - 1) % 7
-                                        ) + 1
-                                        if requested not in available:
-                                            add(
-                                                "error",
-                                                "unavailable_chord_degree",
-                                                f"{target_path}.degree",
-                                                (
-                                                    f"Chord '{harmony.symbol}' does not "
-                                                    f"contain requested top degree "
-                                                    f"{target.degree}."
-                                                ),
-                                            )
-                                except Exception:
-                                    pass
+                                available = harmony_degrees.get(harmony.symbol)
+                                requested = ((int(target.degree) - 1) % 7) + 1
+                                if (
+                                    available is not None
+                                    and requested not in available
+                                ):
+                                    add(
+                                        "error",
+                                        "unavailable_chord_degree",
+                                        f"{target_path}.degree",
+                                        (
+                                            f"Chord '{harmony.symbol}' does not "
+                                            f"contain requested top degree "
+                                            f"{target.degree}."
+                                        ),
+                                    )
 
                 if isinstance(event, PitchedEvent):
                     target = event.target
@@ -784,28 +777,21 @@ def validate_composition(composition: Composition) -> ValidationReport:
                                 f"Target basis '{target.basis}' requires section harmony.",
                             )
                         elif target.basis in {"chord", "next_chord"}:
-                            try:
-                                parsed = parse_chord_symbol(harmony.symbol)
-                                root = parsed.root()
-                                if root is not None:
-                                    root_step = STEP_INDEX[root.step]
-                                    available = {
-                                        ((STEP_INDEX[pitch.step] - root_step) % 7) + 1
-                                        for pitch in parsed.pitches
-                                    }
-                                    requested = ((int(target.degree) - 1) % 7) + 1
-                                    if requested not in available:
-                                        add(
-                                            "error",
-                                            "unavailable_chord_degree",
-                                            f"{event_path}.target.degree",
-                                            (
-                                                f"Chord '{harmony.symbol}' does not "
-                                                f"contain requested degree {target.degree}."
-                                            ),
-                                        )
-                            except Exception:
-                                pass
+                            available = harmony_degrees.get(harmony.symbol)
+                            requested = ((int(target.degree) - 1) % 7) + 1
+                            if (
+                                available is not None
+                                and requested not in available
+                            ):
+                                add(
+                                    "error",
+                                    "unavailable_chord_degree",
+                                    f"{event_path}.target.degree",
+                                    (
+                                        f"Chord '{harmony.symbol}' does not "
+                                        f"contain requested degree {target.degree}."
+                                    ),
+                                )
                     previous_pitched = event
 
             if any(count > 1 for count in exact_events.values()):
@@ -965,7 +951,7 @@ def validate_composition(composition: Composition) -> ValidationReport:
                     )
             for track_id, intervals in by_track.items():
                 ordered = sorted(intervals)
-                for previous, current in zip(ordered, ordered[1:]):
+                for previous, current in pairwise(ordered):
                     if current[0] < previous[1]:
                         add(
                             "error",

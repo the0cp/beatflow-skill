@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Iterable
 
 from .composition_models import (
     ArrivalIntent,
@@ -15,11 +15,11 @@ from .composition_models import (
     DrumEvent,
     HarmonySpan,
     InteractionIntent,
+    PhraseIntent,
+    PhraseStageIntent,
     PitchedEvent,
     PitchTarget,
     PlaySection,
-    PhraseIntent,
-    PhraseStageIntent,
     SectionPlan,
     SegmentPlan,
     SegmentTreatment,
@@ -27,9 +27,8 @@ from .composition_models import (
     TensionContour,
     TrackPlan,
 )
-from .models import KeySignature, Mode, TimeSignature
 from .meter import meter_profile
-
+from .models import KeySignature, Mode, TimeSignature
 
 TimeLike = BeatTime | Fraction | int | tuple[int, int]
 
@@ -95,7 +94,7 @@ def root(alter: int = 0) -> PitchTarget:
 
 @dataclass
 class SegmentBuilder:
-    owner: "SectionBuilder"
+    owner: SectionBuilder
     id: str
     name: str
     track_id: str
@@ -119,7 +118,7 @@ class SegmentBuilder:
         importance: float = 0.5,
         function: str = "",
         motif: str | None = None,
-    ) -> "SegmentBuilder":
+    ) -> SegmentBuilder:
         self.events.append(
             PitchedEvent(
                 onset=self.owner.owner.time(onset),
@@ -148,7 +147,7 @@ class SegmentBuilder:
         top_target: PitchTarget | None = None,
         articulation: str = "normal",
         accent: float = 0.64,
-    ) -> "SegmentBuilder":
+    ) -> SegmentBuilder:
         self.events.append(
             ChordEvent(
                 onset=self.owner.owner.time(onset),
@@ -171,7 +170,7 @@ class SegmentBuilder:
         lane_or_pitch: str | int,
         *,
         velocity: int = 84,
-    ) -> "SegmentBuilder":
+    ) -> SegmentBuilder:
         pitch = (
             DRUM_PITCH[lane_or_pitch]
             if isinstance(lane_or_pitch, str)
@@ -194,7 +193,7 @@ class SegmentBuilder:
         *,
         duration: TimeLike = (1, 16),
         velocities: int | Iterable[int] = 84,
-    ) -> "SegmentBuilder":
+    ) -> SegmentBuilder:
         values = list(onsets)
         velocity_values = (
             [velocities] * len(values)
@@ -207,7 +206,7 @@ class SegmentBuilder:
             self.drum(onset, duration, lane_or_pitch, velocity=velocity)
         return self
 
-    def end(self) -> "SectionBuilder":
+    def end(self) -> SectionBuilder:
         self.owner.segments.append(
             SegmentPlan(
                 id=self.id,
@@ -233,7 +232,7 @@ class SegmentBuilder:
 
 @dataclass
 class SectionBuilder:
-    owner: "SongBuilder"
+    owner: SongBuilder
     id: str
     name: str
     length_bars: int
@@ -257,7 +256,7 @@ class SectionBuilder:
         symbol: str,
         *,
         function: str = "",
-    ) -> "SectionBuilder":
+    ) -> SectionBuilder:
         self.harmony.append(
             HarmonySpan(
                 onset=self.owner.time(onset),
@@ -274,7 +273,7 @@ class SectionBuilder:
         symbol: str,
         *,
         function: str = "",
-    ) -> "SectionBuilder":
+    ) -> SectionBuilder:
         return self.harmony_span(
             self.owner.at(bar),
             self.owner.time(self.owner.beats_per_bar),
@@ -290,7 +289,7 @@ class SectionBuilder:
         *,
         functions: list[str] | None = None,
         description: str = "",
-    ) -> "SectionBuilder":
+    ) -> SectionBuilder:
         """Declare a window that all or selected functions should leave empty."""
 
         self.silences.append(
@@ -318,7 +317,7 @@ class SectionBuilder:
         subphrase_bars: list[int] | None = None,
         tension: tuple[float, float, float] | None = None,
         goal: str = "",
-    ) -> "SectionBuilder":
+    ) -> SectionBuilder:
         """Declare phrase scope, release intent, and optional tension shape."""
 
         self.phrases.append(
@@ -364,7 +363,7 @@ class SectionBuilder:
         post_action: str = "stop",
         max_post_attacks: int = 0,
         goal: str = "",
-    ) -> "SectionBuilder":
+    ) -> SectionBuilder:
         """Declare the audible completion point inside a phrase."""
 
         self.arrivals.append(
@@ -411,7 +410,7 @@ class SectionBuilder:
         focus: bool = False,
         focus_cue: str | None = None,
         goal: str = "",
-    ) -> "SectionBuilder":
+    ) -> SectionBuilder:
         """Declare one internally contrasted stage of a phrase."""
 
         self.phrase_stages.append(
@@ -469,7 +468,7 @@ class SectionBuilder:
             events=[],
         )
 
-    def end(self) -> "SongBuilder":
+    def end(self) -> SongBuilder:
         self.owner._sections.append(
             SectionPlan(
                 id=self.id,
@@ -610,7 +609,7 @@ class SongBuilder:
         low: int = 48,
         center: int = 66,
         high: int = 84,
-    ) -> "SongBuilder":
+    ) -> SongBuilder:
         self._tracks.append(
             TrackPlan(
                 id=id,
@@ -659,7 +658,7 @@ class SongBuilder:
         development: str = "statement",
         energy: float | None = None,
         intent: str = "",
-    ) -> "SongBuilder":
+    ) -> SongBuilder:
         self._timeline.append(
             PlaySection(
                 id=id,
@@ -682,7 +681,7 @@ class SongBuilder:
         octave: int = 0,
         velocity: float = 1.0,
         gate: float = 1.0,
-    ) -> "SongBuilder":
+    ) -> SongBuilder:
         target = next(
             (item for item in self._timeline if item.id == occurrence),
             None,
@@ -711,7 +710,7 @@ class SongBuilder:
         minimum: float = 0.0,
         maximum: float = 1.0,
         description: str = "",
-    ) -> "SongBuilder":
+    ) -> SongBuilder:
         self._interactions.append(
             InteractionIntent(
                 id=id,
