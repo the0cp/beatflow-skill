@@ -1,6 +1,7 @@
 ---
 name: beatflow-skill
 description: Compose, arrange, revise, validate, compare, inspect, and export original multi-track music as Standard MIDI with Codex and BeatFlow's style-neutral Python DSL. Use for translating a musical brief into coordinated instrumental roles, writing complete songs in any genre, diagnosing rhythm or phrasing problems, or working with BeatFlow Composition 1.1 and MIDI files.
+license: GPL-3.0-only
 ---
 
 # BeatFlow

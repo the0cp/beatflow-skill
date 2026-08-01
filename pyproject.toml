@@ -19,8 +19,8 @@ dependencies = [
 beatflow = "beatflow_core.cli:main"
 
 [tool.setuptools]
-package-dir = { "" = "scripts" }
+package-dir = { "" = "skills/beatflow-skill/scripts" }
 
 [tool.setuptools.packages.find]
-where = ["scripts"]
+where = ["skills/beatflow-skill/scripts"]
 include = ["beatflow_core*"]

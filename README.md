@@ -22,7 +22,7 @@ the engine.
 | Neo Soul | [Listen](examples/neo-soul.mp3) | [Download](examples/neo-soul.mid) | Extended voicings, independent bass, and foreground space |
 | Funk | [Listen](examples/funk.mp3) | [Download](examples/funk.mid) | Rhythm-guitar instrument contract and interlocking groove |
 | Theme and Variation | [Listen](examples/theme-and-variation.mp3) | [Download](examples/theme-and-variation.mid) | Motivic development across contrasting variations |
-| Velvet Crosswalk | [Listen](examples/velvet-crosswalk.mp3) | [Download](examples/velvet-crosswalk.mid) | Quantized pop-jazz pocket, a simple piano hook, and regular 2+2-bar phrasing |
+| Pop-Jazz | [Listen](examples/pop-jazz.mp3) | [Download](examples/pop-jazz.mid) | Quantized pocket, a simple piano hook, and regular 2+2-bar phrasing |
 
 ## Why BeatFlow
 
@@ -68,7 +68,7 @@ Composition 1.1 supports:
 With Node.js available:
 
 ```bash
-npx skills add the0cp/beatflow-skill --global --agent codex --yes
+npx skills add the0cp/beatflow-skill --skill beatflow-skill --global --agent codex --yes
 ```
 
 Run the installation smoke test from the installed skill directory:
@@ -77,26 +77,20 @@ Run the installation smoke test from the installed skill directory:
 python scripts/run.py self-check
 ```
 
-### Manual clone
+### GitHub CLI
 
-macOS or Linux:
+With GitHub CLI 2.90 or newer:
 
 ```bash
-codex_home="${CODEX_HOME:-$HOME/.codex}"
-mkdir -p "$codex_home/skills"
-git clone --branch master https://github.com/the0cp/beatflow-skill.git \
-  "$codex_home/skills/beatflow-skill"
-python3 "$codex_home/skills/beatflow-skill/scripts/run.py" self-check
+gh skill install the0cp/beatflow-skill beatflow-skill --agent codex --scope user
 ```
 
-Windows PowerShell:
+### Codex skill installer
 
-```powershell
-$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
-$skillPath = Join-Path $codexHome "skills\beatflow-skill"
-New-Item -ItemType Directory -Path (Split-Path $skillPath) -Force | Out-Null
-git clone --branch master https://github.com/the0cp/beatflow-skill.git $skillPath
-python (Join-Path $skillPath "scripts\run.py") self-check
+From a Codex conversation:
+
+```text
+$skill-installer install https://github.com/the0cp/beatflow-skill/tree/master/skills/beatflow-skill
 ```
 
 The launcher creates an isolated cached runtime and installs the pinned
@@ -118,10 +112,10 @@ Project, and diagnostic JSON.
 BeatFlow writes the composition script and generated files in the workspace,
 not in the installed skill directory.
 
-To run a trusted composition script directly:
+To run a trusted composition script directly from the repository checkout:
 
 ```bash
-python scripts/run.py compose song.py song.mid \
+python skills/beatflow-skill/scripts/run.py compose song.py song.mid \
   --composition-output song.composition.json \
   --project-output song.project.json \
   --report song.report.json
@@ -130,12 +124,12 @@ python scripts/run.py compose song.py song.mid \
 Useful commands:
 
 ```bash
-python scripts/run.py --version
-python scripts/run.py schema --output composition.schema.json
-python scripts/run.py validate song.composition.json
-python scripts/run.py diagnose song.composition.json
-python scripts/run.py inspect song.mid
-python scripts/run.py self-check
+python skills/beatflow-skill/scripts/run.py --version
+python skills/beatflow-skill/scripts/run.py schema --output composition.schema.json
+python skills/beatflow-skill/scripts/run.py validate song.composition.json
+python skills/beatflow-skill/scripts/run.py diagnose song.composition.json
+python skills/beatflow-skill/scripts/run.py inspect song.mid
+python skills/beatflow-skill/scripts/run.py self-check
 ```
 
 ## Upgrade
@@ -146,15 +140,13 @@ Skills CLI installation:
 npx skills update beatflow-skill --global --yes
 ```
 
-Manual clone:
+GitHub CLI installation:
 
 ```bash
-git -C /path/to/beatflow-skill pull --ff-only origin master
-python /path/to/beatflow-skill/scripts/run.py self-check
+gh skill update beatflow-skill
 ```
 
-On Windows, the same commands work with the corresponding Windows path and
-`scripts\run.py`.
+For a Codex skill-installer installation, run the installation prompt again.
 
 ## Develop and test
 
@@ -165,7 +157,7 @@ python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e .
 .venv/bin/python -m unittest discover -s tests -v
-python3 scripts/run.py self-check
+python3 skills/beatflow-skill/scripts/run.py self-check
 ```
 
 Windows PowerShell:
@@ -175,7 +167,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -e .
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
-python scripts\run.py self-check
+python skills\beatflow-skill\scripts\run.py self-check
 ```
 
 The tests cover exact timing, models, validation, diagnostics, compilation,
@@ -183,13 +175,14 @@ arrangement occurrences, MIDI rendering, inspection, and controller output.
 
 ## Repository layout
 
-- `SKILL.md`: composition and revision workflow for Codex
-- `agents/openai.yaml`: skill interface metadata
-- `scripts/beatflow_core`: DSL, models, compiler, validators, diagnostics, and
-  MIDI renderer
-- `scripts/run.py`: dependency-aware launcher
-- `references`: format, architecture, musical guidance, and research
-- `examples`: four MP3/MIDI output pairs
+- `skills/beatflow-skill/SKILL.md`: composition and revision workflow for Codex
+- `skills/beatflow-skill/agents/openai.yaml`: skill interface metadata
+- `skills/beatflow-skill/scripts/beatflow_core`: DSL, models, compiler,
+  validators, diagnostics, and MIDI renderer
+- `skills/beatflow-skill/scripts/run.py`: dependency-aware launcher
+- `skills/beatflow-skill/references`: format, architecture, musical guidance,
+  and research
+- `examples`: listening snapshots used to evaluate the generated arrangements
 - `tests`: unit and end-to-end tests
 
 ## License
